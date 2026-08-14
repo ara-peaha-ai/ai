@@ -1,0 +1,4 @@
+node_modules/
+brave-profile-chatgpt/
+.env
+*.log
