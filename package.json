@@ -1,0 +1,24 @@
+{
+  "name": "ai-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "bin": {
+    "chatgpt-image": "./chatgpt-image.js",
+    "instagram-download": "./instagram-download.js",
+    "instagram-download-batch": "./instagram-download-batch.js",
+    "get-first-frame": "./get-first-frame.js",
+    "get-last-frame": "./get-last-frame.js",
+    "blur-video": "./blur-video.js",
+    "text-overlay": "./text-overlay.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer-core": "^25.5.0"
+  }
+}
