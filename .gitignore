@@ -1,4 +1,24 @@
+# dependencies
 node_modules/
+
+# auth / browser profiles (contain live login sessions)
+chrome-profile-chatgpt/
 brave-profile-chatgpt/
+*-profile-*/
+cookies.txt
+cookies-*.txt
+
+# secrets / credentials
 .env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+credentials.json
+secrets.json
+*.secret
+
+# OS / editor cruft
+.DS_Store
 *.log
