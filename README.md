@@ -17,7 +17,7 @@ chatgpt-image --image ./photo.jpg --prompt "make the background blue"
 | `--prompt` | yes | string | prompt text sent to ChatGPT |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Auth: uses a dedicated, persistent Chrome profile at `chrome-profile-chatgpt/`. It first tries headless; if the login cookie is missing/expired, it closes the headless browser, opens a **visible** Chrome window, and waits up to 5 minutes for you to log in by hand, then continues automatically.
+- Auth: uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/`. It first tries headless; if the login cookie is missing/expired, it closes the headless browser, opens a **visible** Chrome window, and waits up to 5 minutes for you to log in by hand, then continues automatically.
 - Output: saved next to the input file as `<input-name>-mod.<ext>` (e.g. `photo-mod.png`).
 
 ### `instagram-download`
@@ -223,26 +223,27 @@ All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`
    Note: `yt-dlp` was tried first (it's the better-known tool), but its Instagram extractors (both single-post and profile listing) are currently broken upstream — confirmed on the latest version. `gallery-dl` handles photos, reels, and profile batches correctly as of this writing.
 
 6. **Authentication**:
-   - `chatgpt-image` uses a dedicated, persistent Chrome profile at `chrome-profile-chatgpt/` (created automatically on first run). If that profile isn't logged in, the script opens a **visible** Chrome window and waits up to 5 minutes for you to log in by hand, then carries on by itself. **This headful fallback doesn't work on a display-less VPS.** Practical workaround: do the first login on a machine with a screen, then copy the whole `chrome-profile-chatgpt/` folder to the VPS — headless mode alone is enough from there on.
+   - `chatgpt-image` uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/` (created automatically on first run). If that profile isn't logged in, the script opens a **visible** Chrome window and waits up to 5 minutes for you to log in by hand, then carries on by itself. **This headful fallback doesn't work on a display-less VPS.** Practical workaround: do the first login on a machine with a screen, then copy the whole `bin/chrome-profile-chatgpt/` folder to the VPS — headless mode alone is enough from there on.
    - `instagram-download*` and `tiktok-download*` use `gallery-dl --cookies-from-browser chrome`, which reads cookies from the system's *default* Chrome profile (the one you use daily, already logged into Instagram/TikTok). Without `secretstorage` installed (step 5), cookie decryption silently fails for most cookies and requests get redirected to the login page even though you're actually logged in in Chrome — if you see login-redirect errors, check that `secretstorage` is injected into the `gallery-dl` pipx venv. **`--cookies-from-browser` also doesn't work out of the box on a display-less VPS with no locally logged-in Chrome.** Practical workaround: export cookies from your local Chrome into a `cookies.txt` file (e.g. with the "Get cookies.txt LOCALLY" extension), copy it to the VPS, and swap `--cookies-from-browser chrome` for `--cookies /path/to/cookies.txt` in the scripts — not implemented yet, do this if/when the VPS move actually happens.
 
 ## Repo structure
 
 ```
 ai-cli/
-├── chatgpt-image.js            # command: chatgpt-image
-├── instagram-download.js       # command: instagram-download
-├── instagram-download-batch.js # command: instagram-download-batch
-├── tiktok-download.js          # command: tiktok-download
-├── tiktok-download-batch.js    # command: tiktok-download-batch
-├── get-first-frame.js          # command: get-first-frame
-├── get-last-frame.js           # command: get-last-frame
-├── blur-video.js                # command: blur-video
-├── text-overlay.js              # command: text-overlay (placeholder/stub)
-├── share-qr.js                  # command: share-qr
-├── search-string.js             # command: search-string
-├── ai-cli.js                    # command: ai-cli (lists all commands)
-├── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
+├── bin/
+│   ├── chatgpt-image.js            # command: chatgpt-image
+│   ├── instagram-download.js       # command: instagram-download
+│   ├── instagram-download-batch.js # command: instagram-download-batch
+│   ├── tiktok-download.js          # command: tiktok-download
+│   ├── tiktok-download-batch.js    # command: tiktok-download-batch
+│   ├── get-first-frame.js          # command: get-first-frame
+│   ├── get-last-frame.js           # command: get-last-frame
+│   ├── blur-video.js                # command: blur-video
+│   ├── text-overlay.js              # command: text-overlay (placeholder/stub)
+│   ├── share-qr.js                  # command: share-qr
+│   ├── search-string.js             # command: search-string
+│   ├── ai-cli.js                    # command: ai-cli (lists all commands)
+│   └── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
 ├── package.json
 └── README.md
 ```
