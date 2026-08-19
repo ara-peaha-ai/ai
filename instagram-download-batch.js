@@ -13,22 +13,24 @@ if (args.includes('--help') || args.includes('-h') || !target) {
 const username = target.replace(/^https?:\/\/(www\.)?instagram\.com\//, '').replace(/\/.*$/, '');
 const profileUrl = `https://www.instagram.com/${username}/`;
 
-fs.mkdirSync(username, { recursive: true });
+const OUTPUT_DIR = 'instagram';
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 // ponytail: gallery-dl, not yt-dlp — yt-dlp's Instagram extractors are
 // currently broken upstream (both instagram:user and single-post video).
 const FILENAME_FORMAT = '{username}-{date:%Y%m%dT%H%M%S}_{num}.{extension}';
 
 // --download-archive skips posts already downloaded on a rerun, which is
-// the whole point of hitting a profile repeatedly over time.
+// the whole point of hitting a profile repeatedly over time. Shared across
+// all profiles in OUTPUT_DIR since gallery-dl keys entries by post id.
 const result = spawnSync(
   'gallery-dl',
   [
-    '--cookies-from-browser', 'brave',
+    '--cookies-from-browser', 'chrome',
     '-o', 'include=posts,highlights',
-    '-D', username,
+    '-D', OUTPUT_DIR,
     '-f', FILENAME_FORMAT,
-    '--download-archive', `${username}/.downloaded.sqlite3`,
+    '--download-archive', `${OUTPUT_DIR}/.downloaded.sqlite3`,
     profileUrl
   ],
   { stdio: 'inherit' }
@@ -39,6 +41,6 @@ if (result.error) {
   process.exit(1);
 }
 if (result.status !== 0) {
-  console.error('❌ Download failed. If this keeps happening, log into instagram.com in Brave and retry.');
+  console.error('❌ Download failed. If this keeps happening, log into instagram.com in Chrome and retry.');
 }
 process.exit(result.status ?? 1);

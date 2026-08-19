@@ -3,8 +3,8 @@ const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
 
-const BRAVE_PATH = '/usr/bin/brave-browser';
-const USER_DATA_DIR = path.join(__dirname, 'brave-profile-chatgpt');
+const CHROME_PATH = '/usr/bin/google-chrome-stable';
+const USER_DATA_DIR = path.join(__dirname, 'chrome-profile-chatgpt');
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // time given to log in by hand in the headful window
 
 const args = process.argv.slice(2);
@@ -44,7 +44,7 @@ async function typeHuman(page, selector, text) {
 
 async function launchBrowser(headless) {
   return puppeteer.launch({
-    executablePath: BRAVE_PATH,
+    executablePath: CHROME_PATH,
     userDataDir: USER_DATA_DIR,
     headless,
     args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
@@ -60,7 +60,7 @@ async function openAuthenticatedPage(browser) {
     await page.waitForSelector('#prompt-textarea', { timeout: 15000 });
     return { page, browser };
   } catch {
-    console.log('🔐 Not logged in. Opening a visible Brave window — log in, then the script will continue automatically...');
+    console.log('🔐 Not logged in. Opening a visible Chrome window — log in, then the script will continue automatically...');
   }
 
   await browser.close();

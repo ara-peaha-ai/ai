@@ -4,13 +4,18 @@
   "description": "",
   "main": "index.js",
   "bin": {
+    "ai-cli": "./ai-cli.js",
     "chatgpt-image": "./chatgpt-image.js",
     "instagram-download": "./instagram-download.js",
     "instagram-download-batch": "./instagram-download-batch.js",
+    "tiktok-download": "./tiktok-download.js",
+    "tiktok-download-batch": "./tiktok-download-batch.js",
     "get-first-frame": "./get-first-frame.js",
     "get-last-frame": "./get-last-frame.js",
     "blur-video": "./blur-video.js",
-    "text-overlay": "./text-overlay.js"
+    "text-overlay": "./text-overlay.js",
+    "share-qr": "./share-qr.js",
+    "search-string": "./search-string.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
