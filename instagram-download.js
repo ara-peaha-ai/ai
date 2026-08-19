@@ -13,7 +13,7 @@ if (args.includes('--help') || args.includes('-h') || !url) {
 // currently broken upstream (both instagram:user and single-post video).
 const FILENAME_FORMAT = '{username}-{date:%Y%m%dT%H%M%S}_{num}.{extension}';
 
-const result = spawnSync('gallery-dl', ['--cookies-from-browser', 'brave', '-D', '.', '-f', FILENAME_FORMAT, url], {
+const result = spawnSync('gallery-dl', ['--cookies-from-browser', 'chrome', '-D', '.', '-f', FILENAME_FORMAT, url], {
   stdio: 'inherit'
 });
 
@@ -22,6 +22,6 @@ if (result.error) {
   process.exit(1);
 }
 if (result.status !== 0) {
-  console.error('❌ Download failed. If this keeps happening, log into instagram.com in Brave and retry.');
+  console.error('❌ Download failed. If this keeps happening, log into instagram.com in Chrome and retry.');
 }
 process.exit(result.status ?? 1);
