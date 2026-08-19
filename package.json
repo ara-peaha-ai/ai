@@ -1,28 +1,28 @@
 {
-  "name": "ai-cli",
-  "version": "1.0.0",
-  "description": "",
+  "name": "@paguaitu/ai-cli",
+  "description": "Commandline tools to work faster with AI and social media and linux software",
+  "private": true,
+  "author": "PAGUAITU Verein",
+  "license": "MIT",
+  "version": "0.1.0",
   "main": "index.js",
   "bin": {
-    "ai-cli": "./ai-cli.js",
-    "chatgpt-image": "./chatgpt-image.js",
-    "instagram-download": "./instagram-download.js",
-    "instagram-download-batch": "./instagram-download-batch.js",
-    "tiktok-download": "./tiktok-download.js",
-    "tiktok-download-batch": "./tiktok-download-batch.js",
-    "get-first-frame": "./get-first-frame.js",
-    "get-last-frame": "./get-last-frame.js",
-    "blur-video": "./blur-video.js",
-    "text-overlay": "./text-overlay.js",
-    "share-qr": "./share-qr.js",
-    "search-string": "./search-string.js"
+    "ai-cli": "./bin/ai-cli.js",
+    "chatgpt-image": "./bin/chatgpt-image.js",
+    "instagram-download": "./bin/instagram-download.js",
+    "instagram-download-batch": "./bin/instagram-download-batch.js",
+    "tiktok-download": "./bin/tiktok-download.js",
+    "tiktok-download-batch": "./bin/tiktok-download-batch.js",
+    "get-first-frame": "./bin/get-first-frame.js",
+    "get-last-frame": "./bin/get-last-frame.js",
+    "blur-video": "./bin/blur-video.js",
+    "text-overlay": "./bin/text-overlay.js",
+    "share-qr": "./bin/share-qr.js",
+    "search-string": "./bin/search-string.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "puppeteer-core": "^25.5.0"
   }
