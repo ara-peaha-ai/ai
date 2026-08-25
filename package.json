@@ -18,12 +18,16 @@
     "blur-video": "./bin/blur-video.js",
     "text-overlay": "./bin/text-overlay.js",
     "share-qr": "./bin/share-qr.js",
-    "search-string": "./bin/search-string.js"
+    "search-string": "./bin/search-string.js",
+    "watermark-image": "./bin/watermark-image.js",
+    "watermark-video": "./bin/watermark-video.js",
+    "redact-faces": "./bin/redact-faces.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "puppeteer-core": "^25.5.0"
+    "puppeteer-core": "^25.5.0",
+    "sharp": "^0.35.3"
   }
 }

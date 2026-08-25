@@ -12,6 +12,9 @@ const COMMANDS = [
   ['text-overlay', 'Draw text overlay on a video (placeholder/stub)'],
   ['share-qr', 'Print/save a QR code for arbitrary text'],
   ['search-string', 'Search file names + content for a string in a directory'],
+  ['watermark-image', 'Tile a rotated diagonal text watermark over an image'],
+  ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
+  ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
 ];
 
 const width = Math.max(...COMMANDS.map(([name]) => name.length));
