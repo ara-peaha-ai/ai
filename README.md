@@ -178,6 +178,64 @@ search-string sometext --case true --directory ~/foo/bar
 
 - Wraps `find -iname`/`-name` (file names) and `grep -rn -I`/`-i` (file content, binary files skipped).
 
+### `watermark-image`
+Tiles a rotated (-45°) diagonal text watermark over an image.
+
+```
+watermark-image --text "ondanovia.com" ./photo.jpg
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image file path | positional argument, first non-flag arg |
+| `--text` | yes | string | watermark text |
+| `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
+| `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Renders the text as a rotated SVG, tiled at a fixed 256×256px repeat over the full image via `sharp`.
+- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
+
+### `watermark-video`
+Tiles the same rotated diagonal text watermark over every frame of a video.
+
+```
+watermark-video --text "ondanovia.com" ./input.mp4
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | video file path | positional argument, first non-flag arg |
+| `--text` | yes | string | watermark text |
+| `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
+| `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Extracts the first frame (`ffmpeg`) to get the video's real pixel size, builds a full-frame transparent PNG tiled with the watermark (tile scaled to ~1/3 of the frame width/height, via `sharp`), then overlays it onto every frame (`ffmpeg -filter_complex overlay`, audio copied through untouched).
+- Re-encodes video only (`libx264` default from ffmpeg's overlay output); this is CPU-bound and can be slow/heavy on long or high-resolution videos on a laptop — GPU-accelerated encoding is a possible future addition, not implemented yet.
+- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
+
+### `redact-faces`
+Blurs/redacts faces in an image or video via the Sightengine API (image vs video auto-detected from the file extension).
+
+```
+redact-faces --api-user U --api-secret S ./photo.jpg
+redact-faces ./input.mp4   # if SIGHTENGINE_USER / SIGHTENGINE_SECRET are set
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image or video file path | positional argument, first non-flag arg |
+| `--api-user` | no* | string | Sightengine API user |
+| `--api-secret` | no* | string | Sightengine API secret |
+| `--help` / `-h` | no | — | print usage and exit |
+
+*`--api-user`/`--api-secret` are required one way or another — either as flags, or via the `SIGHTENGINE_USER`/`SIGHTENGINE_SECRET` env vars (flags take precedence).
+
+- Images: single synchronous call to Sightengine's Image Redaction API (`transform.json`).
+- Videos: submits to the Video Redaction API (`video/transform.json`), then polls `video/byid.json` every 2s for up to 30 attempts (~1 minute) until the transform finishes, then downloads the result.
+- Output: saved next to the input file as `<input-name>-redacted.<ext>`.
+
 ### `ai-cli`
 Lists all commands in this toolbox with a short description.
 
@@ -185,7 +243,7 @@ Lists all commands in this toolbox with a short description.
 ai-cli --help
 ```
 
-All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, and `text-overlay` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All fifteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -203,7 +261,7 @@ All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`
    npm install
    npm link
    ```
-   After `npm link`, all ten commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all fourteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
 4. **Chrome browser**:
    ```
@@ -242,6 +300,9 @@ ai-cli/
 │   ├── text-overlay.js              # command: text-overlay (placeholder/stub)
 │   ├── share-qr.js                  # command: share-qr
 │   ├── search-string.js             # command: search-string
+│   ├── watermark-image.js           # command: watermark-image
+│   ├── watermark-video.js           # command: watermark-video
+│   ├── redact-faces.js              # command: redact-faces
 │   ├── ai-cli.js                    # command: ai-cli (lists all commands)
 │   └── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
 ├── package.json
