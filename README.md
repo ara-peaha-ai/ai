@@ -1,6 +1,6 @@
 # ai-cli toolbox
 
-Terminal commands for AI/media workflows: drives Chrome (via a persistent profile + puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram) using the browser's already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`-based video utilities.
+Terminal commands for AI/media workflows: drives Chrome (via a persistent profile + puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram) using the browser's already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
 
 ## Commands
 
@@ -128,19 +128,27 @@ blur-video --at 19 ./input.mp4
 - Output: saved next to the input file as `<input-name>-blurred.<ext>`.
 
 ### `text-overlay`
-**Placeholder/stub** — currently always draws "hello world" centered on screen for the first 3 seconds, regardless of input. Not yet configurable.
+Draws a single line of text over an image or a video (input type auto-detected from the file extension).
 
 ```
-text-overlay ./input.mp4
+text-overlay --text "Ma se sbagli: 50% di tasse" ./photo.jpg
+text-overlay --text "hello" --position bottom --start 0 --end 3 ./input.mp4
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | video file path | positional argument, first non-flag arg |
+| `<input>` | yes | image or video file path | positional argument, first non-flag arg |
+| `--text` | yes | string | text to draw (or set env `TEXT_OVERLAY_TEXT`) |
+| `--position` | no | `top` \| `center` \| `bottom` | vertical placement, always horizontally centered (default: `top`) |
+| `--fontsize` | no | number | font size in px (default: `48`) |
+| `--color` | no | ffmpeg color name or `#hex` | font color (default: `white`) |
+| `--start` | no | seconds | video only: when the text appears (default: `0`) |
+| `--end` | no | seconds | video only: when the text disappears (default: end of clip) |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Wraps `ffmpeg -vf "drawtext=text='hello world':...:enable='between(t,0,3)'" -c:v libx264 -crf 18 -an`.
-- TODO: add `--text` / `--start` / `--end` flags once real requirements are known.
+- Text is always drawn with a 2px black border for legibility. `--start`/`--end` are ignored for images (the overlay is permanent).
+- Passed to `drawtext` via a temp `textfile` with `expansion=none`, so `:` `%` `'` `,` in the text need no escaping and don't trigger drawtext's `%{...}` expansion.
+- Images: `ffmpeg -i in -vf drawtext=... -q:v 2 out` (single frame, quality preserved). Videos: adds `enable='between(t,start,end)'`, re-encodes `libx264 -crf 18`, drops audio (`-an`).
 - Output: saved next to the input file as `<input-name>-overlay.<ext>`.
 
 ### `share-qr`
@@ -236,6 +244,26 @@ redact-faces ./input.mp4   # if SIGHTENGINE_USER / SIGHTENGINE_SECRET are set
 - Videos: submits to the Video Redaction API (`video/transform.json`), then polls `video/byid.json` every 2s for up to 30 attempts (~1 minute) until the transform finishes, then downloads the result.
 - Output: saved next to the input file as `<input-name>-redacted.<ext>`.
 
+### `upscale`
+Resamples an image, or every image in a folder, up by an integer factor.
+
+```
+upscale ./frame.png                     # 2x, -> frame@2x.png
+upscale --scale 3 ./frame.png           # 3x, -> frame@3x.png
+upscale ./animation-frames              # 2x every image -> animation-frames@2x/
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image file **or** folder of images | positional argument, first non-flag arg |
+| `--scale` | no | integer > 1 | resize factor per side (default: `2`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Wraps `convert <in> -colorspace RGB -filter Lanczos -resize <N*100>% -colorspace sRGB -unsharp 0x0.75+0.6+0.008 -strip <out>` — resize is done in linear light, with a light sharpen pass to counter the softening.
+- This is a plain resample: more pixels, **no invented detail**. For a genuine ML upscale (sharper skin/hair/edges) install `realesrgan-ncnn-vulkan` and run that instead.
+- Recognised image extensions: `.jpg .jpeg .png .webp .bmp .tif .tiff`. A folder input skips everything else.
+- Output: a file becomes `<name>@<N>x.<ext>` next to the input; a folder fans out to a sibling `<folder>@<N>x/` with the same file names. Originals are never touched.
+
 ### `ai-cli`
 Lists all commands in this toolbox with a short description.
 
@@ -243,7 +271,7 @@ Lists all commands in this toolbox with a short description.
 ai-cli --help
 ```
 
-All fifteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale` requires `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`). `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -261,7 +289,7 @@ All fifteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame
    npm install
    npm link
    ```
-   After `npm link`, all fourteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all sixteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
 4. **Chrome browser**:
    ```
@@ -297,7 +325,8 @@ ai-cli/
 │   ├── get-first-frame.js          # command: get-first-frame
 │   ├── get-last-frame.js           # command: get-last-frame
 │   ├── blur-video.js                # command: blur-video
-│   ├── text-overlay.js              # command: text-overlay (placeholder/stub)
+│   ├── text-overlay.js              # command: text-overlay
+│   ├── upscale.js                   # command: upscale
 │   ├── share-qr.js                  # command: share-qr
 │   ├── search-string.js             # command: search-string
 │   ├── watermark-image.js           # command: watermark-image
