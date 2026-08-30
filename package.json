@@ -1,8 +1,8 @@
 {
-  "name": "@paguaitu/ai-cli",
+  "name": "@paga-peaha-ai/ai-cli",
   "description": "Commandline tools to work faster with AI and social media and linux software",
   "private": true,
-  "author": "PAGUAITU Verein",
+  "author": "PE'AHA Verein",
   "license": "MIT",
   "version": "0.1.0",
   "main": "index.js",
@@ -17,6 +17,7 @@
     "get-last-frame": "./bin/get-last-frame.js",
     "blur-video": "./bin/blur-video.js",
     "text-overlay": "./bin/text-overlay.js",
+    "upscale": "./bin/upscale.js",
     "share-qr": "./bin/share-qr.js",
     "search-string": "./bin/search-string.js",
     "watermark-image": "./bin/watermark-image.js",
