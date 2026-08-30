@@ -9,9 +9,13 @@ const COMMANDS = [
   ['get-first-frame', 'Extract the first frame of a video as a JPEG'],
   ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
   ['blur-video', 'Blur a video from a given second to the end'],
-  ['text-overlay', 'Draw text overlay on a video (placeholder/stub)'],
+  ['text-overlay', 'Draw a line of text over an image or a video'],
+  ['upscale', 'Resample an image (or a folder of images) up by an integer factor'],
   ['share-qr', 'Print/save a QR code for arbitrary text'],
   ['search-string', 'Search file names + content for a string in a directory'],
+  ['watermark-image', 'Tile a rotated diagonal text watermark over an image'],
+  ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
+  ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
 ];
 
 const width = Math.max(...COMMANDS.map(([name]) => name.length));

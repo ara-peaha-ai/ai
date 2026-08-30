@@ -1,6 +1,6 @@
 # ai-cli toolbox
 
-Terminal commands for AI/media workflows: drives Chrome (via a persistent profile + puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram) using the browser's already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`-based video utilities.
+Terminal commands for AI/media workflows: drives Chrome (via a persistent profile + puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram) using the browser's already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
 
 ## Commands
 
@@ -17,7 +17,7 @@ chatgpt-image --image ./photo.jpg --prompt "make the background blue"
 | `--prompt` | yes | string | prompt text sent to ChatGPT |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Auth: uses a dedicated, persistent Chrome profile at `chrome-profile-chatgpt/`. It first tries headless; if the login cookie is missing/expired, it closes the headless browser, opens a **visible** Chrome window, and waits up to 5 minutes for you to log in by hand, then continues automatically.
+- Auth: uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/`. It first tries headless; if the login cookie is missing/expired, it closes the headless browser, opens a **visible** Chrome window, and waits up to 5 minutes for you to log in by hand, then continues automatically.
 - Output: saved next to the input file as `<input-name>-mod.<ext>` (e.g. `photo-mod.png`).
 
 ### `instagram-download`
@@ -128,19 +128,27 @@ blur-video --at 19 ./input.mp4
 - Output: saved next to the input file as `<input-name>-blurred.<ext>`.
 
 ### `text-overlay`
-**Placeholder/stub** — currently always draws "hello world" centered on screen for the first 3 seconds, regardless of input. Not yet configurable.
+Draws a single line of text over an image or a video (input type auto-detected from the file extension).
 
 ```
-text-overlay ./input.mp4
+text-overlay --text "Ma se sbagli: 50% di tasse" ./photo.jpg
+text-overlay --text "hello" --position bottom --start 0 --end 3 ./input.mp4
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | video file path | positional argument, first non-flag arg |
+| `<input>` | yes | image or video file path | positional argument, first non-flag arg |
+| `--text` | yes | string | text to draw (or set env `TEXT_OVERLAY_TEXT`) |
+| `--position` | no | `top` \| `center` \| `bottom` | vertical placement, always horizontally centered (default: `top`) |
+| `--fontsize` | no | number | font size in px (default: `48`) |
+| `--color` | no | ffmpeg color name or `#hex` | font color (default: `white`) |
+| `--start` | no | seconds | video only: when the text appears (default: `0`) |
+| `--end` | no | seconds | video only: when the text disappears (default: end of clip) |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Wraps `ffmpeg -vf "drawtext=text='hello world':...:enable='between(t,0,3)'" -c:v libx264 -crf 18 -an`.
-- TODO: add `--text` / `--start` / `--end` flags once real requirements are known.
+- Text is always drawn with a 2px black border for legibility. `--start`/`--end` are ignored for images (the overlay is permanent).
+- Passed to `drawtext` via a temp `textfile` with `expansion=none`, so `:` `%` `'` `,` in the text need no escaping and don't trigger drawtext's `%{...}` expansion.
+- Images: `ffmpeg -i in -vf drawtext=... -q:v 2 out` (single frame, quality preserved). Videos: adds `enable='between(t,start,end)'`, re-encodes `libx264 -crf 18`, drops audio (`-an`).
 - Output: saved next to the input file as `<input-name>-overlay.<ext>`.
 
 ### `share-qr`
@@ -178,6 +186,84 @@ search-string sometext --case true --directory ~/foo/bar
 
 - Wraps `find -iname`/`-name` (file names) and `grep -rn -I`/`-i` (file content, binary files skipped).
 
+### `watermark-image`
+Tiles a rotated (-45°) diagonal text watermark over an image.
+
+```
+watermark-image --text "ondanovia.com" ./photo.jpg
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image file path | positional argument, first non-flag arg |
+| `--text` | yes | string | watermark text |
+| `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
+| `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Renders the text as a rotated SVG, tiled at a fixed 256×256px repeat over the full image via `sharp`.
+- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
+
+### `watermark-video`
+Tiles the same rotated diagonal text watermark over every frame of a video.
+
+```
+watermark-video --text "ondanovia.com" ./input.mp4
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | video file path | positional argument, first non-flag arg |
+| `--text` | yes | string | watermark text |
+| `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
+| `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Extracts the first frame (`ffmpeg`) to get the video's real pixel size, builds a full-frame transparent PNG tiled with the watermark (tile scaled to ~1/3 of the frame width/height, via `sharp`), then overlays it onto every frame (`ffmpeg -filter_complex overlay`, audio copied through untouched).
+- Re-encodes video only (`libx264` default from ffmpeg's overlay output); this is CPU-bound and can be slow/heavy on long or high-resolution videos on a laptop — GPU-accelerated encoding is a possible future addition, not implemented yet.
+- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
+
+### `redact-faces`
+Blurs/redacts faces in an image or video via the Sightengine API (image vs video auto-detected from the file extension).
+
+```
+redact-faces --api-user U --api-secret S ./photo.jpg
+redact-faces ./input.mp4   # if SIGHTENGINE_USER / SIGHTENGINE_SECRET are set
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image or video file path | positional argument, first non-flag arg |
+| `--api-user` | no* | string | Sightengine API user |
+| `--api-secret` | no* | string | Sightengine API secret |
+| `--help` / `-h` | no | — | print usage and exit |
+
+*`--api-user`/`--api-secret` are required one way or another — either as flags, or via the `SIGHTENGINE_USER`/`SIGHTENGINE_SECRET` env vars (flags take precedence).
+
+- Images: single synchronous call to Sightengine's Image Redaction API (`transform.json`).
+- Videos: submits to the Video Redaction API (`video/transform.json`), then polls `video/byid.json` every 2s for up to 30 attempts (~1 minute) until the transform finishes, then downloads the result.
+- Output: saved next to the input file as `<input-name>-redacted.<ext>`.
+
+### `upscale`
+Resamples an image, or every image in a folder, up by an integer factor.
+
+```
+upscale ./frame.png                     # 2x, -> frame@2x.png
+upscale --scale 3 ./frame.png           # 3x, -> frame@3x.png
+upscale ./animation-frames              # 2x every image -> animation-frames@2x/
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image file **or** folder of images | positional argument, first non-flag arg |
+| `--scale` | no | integer > 1 | resize factor per side (default: `2`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Wraps `convert <in> -colorspace RGB -filter Lanczos -resize <N*100>% -colorspace sRGB -unsharp 0x0.75+0.6+0.008 -strip <out>` — resize is done in linear light, with a light sharpen pass to counter the softening.
+- This is a plain resample: more pixels, **no invented detail**. For a genuine ML upscale (sharper skin/hair/edges) install `realesrgan-ncnn-vulkan` and run that instead.
+- Recognised image extensions: `.jpg .jpeg .png .webp .bmp .tif .tiff`. A folder input skips everything else.
+- Output: a file becomes `<name>@<N>x.<ext>` next to the input; a folder fans out to a sibling `<folder>@<N>x/` with the same file names. Originals are never touched.
+
 ### `ai-cli`
 Lists all commands in this toolbox with a short description.
 
@@ -185,7 +271,7 @@ Lists all commands in this toolbox with a short description.
 ai-cli --help
 ```
 
-All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, and `text-overlay` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale` requires `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`). `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -203,7 +289,7 @@ All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`
    npm install
    npm link
    ```
-   After `npm link`, all ten commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all sixteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
 4. **Chrome browser**:
    ```
@@ -223,26 +309,31 @@ All twelve commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`
    Note: `yt-dlp` was tried first (it's the better-known tool), but its Instagram extractors (both single-post and profile listing) are currently broken upstream — confirmed on the latest version. `gallery-dl` handles photos, reels, and profile batches correctly as of this writing.
 
 6. **Authentication**:
-   - `chatgpt-image` uses a dedicated, persistent Chrome profile at `chrome-profile-chatgpt/` (created automatically on first run). If that profile isn't logged in, the script opens a **visible** Chrome window and waits up to 5 minutes for you to log in by hand, then carries on by itself. **This headful fallback doesn't work on a display-less VPS.** Practical workaround: do the first login on a machine with a screen, then copy the whole `chrome-profile-chatgpt/` folder to the VPS — headless mode alone is enough from there on.
+   - `chatgpt-image` uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/` (created automatically on first run). If that profile isn't logged in, the script opens a **visible** Chrome window and waits up to 5 minutes for you to log in by hand, then carries on by itself. **This headful fallback doesn't work on a display-less VPS.** Practical workaround: do the first login on a machine with a screen, then copy the whole `bin/chrome-profile-chatgpt/` folder to the VPS — headless mode alone is enough from there on.
    - `instagram-download*` and `tiktok-download*` use `gallery-dl --cookies-from-browser chrome`, which reads cookies from the system's *default* Chrome profile (the one you use daily, already logged into Instagram/TikTok). Without `secretstorage` installed (step 5), cookie decryption silently fails for most cookies and requests get redirected to the login page even though you're actually logged in in Chrome — if you see login-redirect errors, check that `secretstorage` is injected into the `gallery-dl` pipx venv. **`--cookies-from-browser` also doesn't work out of the box on a display-less VPS with no locally logged-in Chrome.** Practical workaround: export cookies from your local Chrome into a `cookies.txt` file (e.g. with the "Get cookies.txt LOCALLY" extension), copy it to the VPS, and swap `--cookies-from-browser chrome` for `--cookies /path/to/cookies.txt` in the scripts — not implemented yet, do this if/when the VPS move actually happens.
 
 ## Repo structure
 
 ```
 ai-cli/
-├── chatgpt-image.js            # command: chatgpt-image
-├── instagram-download.js       # command: instagram-download
-├── instagram-download-batch.js # command: instagram-download-batch
-├── tiktok-download.js          # command: tiktok-download
-├── tiktok-download-batch.js    # command: tiktok-download-batch
-├── get-first-frame.js          # command: get-first-frame
-├── get-last-frame.js           # command: get-last-frame
-├── blur-video.js                # command: blur-video
-├── text-overlay.js              # command: text-overlay (placeholder/stub)
-├── share-qr.js                  # command: share-qr
-├── search-string.js             # command: search-string
-├── ai-cli.js                    # command: ai-cli (lists all commands)
-├── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
+├── bin/
+│   ├── chatgpt-image.js            # command: chatgpt-image
+│   ├── instagram-download.js       # command: instagram-download
+│   ├── instagram-download-batch.js # command: instagram-download-batch
+│   ├── tiktok-download.js          # command: tiktok-download
+│   ├── tiktok-download-batch.js    # command: tiktok-download-batch
+│   ├── get-first-frame.js          # command: get-first-frame
+│   ├── get-last-frame.js           # command: get-last-frame
+│   ├── blur-video.js                # command: blur-video
+│   ├── text-overlay.js              # command: text-overlay
+│   ├── upscale.js                   # command: upscale
+│   ├── share-qr.js                  # command: share-qr
+│   ├── search-string.js             # command: search-string
+│   ├── watermark-image.js           # command: watermark-image
+│   ├── watermark-video.js           # command: watermark-video
+│   ├── redact-faces.js              # command: redact-faces
+│   ├── ai-cli.js                    # command: ai-cli (lists all commands)
+│   └── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
 ├── package.json
 └── README.md
 ```
