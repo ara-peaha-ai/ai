@@ -1,5 +1,23 @@
 #!/usr/bin/env node
 
+// `ai-cli doctor` — show which browser chatgpt-image would use right now.
+if (process.argv[2] === 'doctor') {
+  const path = require('path');
+  try {
+    process.loadEnvFile(path.join(__dirname, '..', '.env'));
+  } catch {}
+  const { resolveBrowser, isHeadlessBox } = require('./lib/browser');
+  console.log(`headless host: ${isHeadlessBox() ? 'yes (no DISPLAY/WAYLAND)' : 'no'}`);
+  try {
+    const p = resolveBrowser();
+    console.log(`browser      : ${p.mode === 'remote' ? 'remote — ' : 'local — '}${p.label}`);
+  } catch (e) {
+    console.log(`browser      : none — ${e.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 const COMMANDS = [
   ['chatgpt-image', 'Upload an image to ChatGPT with a prompt, download the result'],
   ['instagram-download', 'Download a single Instagram reel, post, or photo'],
@@ -28,4 +46,5 @@ for (const [name, desc] of COMMANDS) {
   console.log(`  ${name.padEnd(width)}  ${desc}`);
 }
 console.log('');
+console.log('ai-cli doctor   Show which browser chatgpt-image would use');
 console.log('Full docs: README.md');

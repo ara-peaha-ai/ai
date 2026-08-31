@@ -7,10 +7,12 @@ brave-profile-chatgpt/
 *-profile-*/
 cookies.txt
 cookies-*.txt
+*-cookies.json
 
 # secrets / credentials
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.crt
