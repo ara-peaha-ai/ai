@@ -1,6 +1,6 @@
 # ai-cli toolbox
 
-Terminal commands for AI/media workflows: drives Chrome (via a persistent profile + puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram) using the browser's already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
+Terminal commands for AI/media workflows: drives a local Chromium-family browser or a remote browserless.io instance (via puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram/TikTok) using already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
 
 ## Commands
 
@@ -13,11 +13,16 @@ chatgpt-image --image ./photo.jpg --prompt "make the background blue"
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `--image` | yes | file path | image to upload (relative or absolute) |
-| `--prompt` | yes | string | prompt text sent to ChatGPT |
+| `--image` | yes* | file path | image to upload (relative or absolute) |
+| `--prompt` | yes* | string | prompt text sent to ChatGPT |
+| `--dump-cookies` | no | — | local login only: save `chatgpt-cookies.json` for use on a headless host, then exit |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Auth: uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/`. It first tries headless; if the login cookie is missing/expired, it closes the headless browser, opens a **visible** Chrome window, and waits up to 5 minutes for you to log in by hand, then continues automatically.
+*not required with `--dump-cookies`.
+
+- **Browser**: auto-detected — the OS default browser if it's Chromium-family, else `chrome`, `chromium`, `brave` in that order. Override with `AICLI_BROWSER=chrome|chromium|brave|/abs/path`. On a headless host (no `DISPLAY`) with `BROWSERLESS_API_KEY` set, it connects to browserless.io instead. `AICLI_BROWSER=browserless` forces that anywhere. Run `ai-cli doctor` to see the current pick. Full setup (browserless key, cookie workflow) in step 4 below.
+- **Auth (local browser)**: a dedicated persistent profile at `bin/chrome-profile-chatgpt/`. Tries headless first; if not logged in it opens a **visible** window and waits up to 5 minutes for a hand login, then continues.
+- **Auth (browserless / headless)**: no persistent profile is possible over a remote connection, so it loads `bin/chatgpt-cookies.json` (generate it on a desktop with `chatgpt-image --dump-cookies`, copy it over, or point `CHATGPT_COOKIES_FILE` elsewhere). Stale/missing cookies fail with an explicit message.
 - Output: saved next to the input file as `<input-name>-mod.<ext>` (e.g. `photo-mod.png`).
 
 ### `instagram-download`
@@ -269,9 +274,10 @@ Lists all commands in this toolbox with a short description.
 
 ```
 ai-cli --help
+ai-cli doctor    # which browser chatgpt-image would use here (local family / browserless / none)
 ```
 
-All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale` requires `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`). `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale` requires `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -291,11 +297,24 @@ All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame
    ```
    After `npm link`, all sixteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
-4. **Chrome browser**:
+4. **Browser (for `chatgpt-image`)** — only this command needs a browser; the download commands use `gallery-dl`.
+
+   **Desktop / machine with a screen** — install any Chromium-family browser:
    ```
-   sudo apt install google-chrome-stable
+   sudo apt install chromium-browser      # or google-chrome-stable, or brave
    ```
-   (or follow Google's official install guide if the apt repo isn't set up).
+   `chatgpt-image` picks the OS default browser if it's Chromium-family, otherwise the first of `chrome` / `chromium` / `brave` it finds. Force one with `AICLI_BROWSER` (env or `.env`):
+   ```
+   AICLI_BROWSER=chrome        # name: chrome | chromium | brave
+   AICLI_BROWSER=/opt/whatever/chrome   # or an absolute path
+   ```
+
+   **Headless host / VPS** — no local browser, use [browserless.io](https://www.browserless.io):
+   1. Copy `.env.example` to `.env` and set `BROWSERLESS_API_KEY` (from the browserless dashboard). Optional: `BROWSERLESS_URL` to change region, or `BROWSERLESS_WS_ENDPOINT` for a self-hosted/tokenless endpoint. `.env` is git-ignored; the shell environment works too.
+   2. On a desktop, run `chatgpt-image --dump-cookies` — log in when the window opens; it writes `bin/chatgpt-cookies.json`.
+   3. Copy that file to the host at the same path (or set `CHATGPT_COOKIES_FILE`). Re-run `--dump-cookies` and re-copy whenever the session expires.
+
+   With no `DISPLAY` and `BROWSERLESS_API_KEY` set, the browserless path is used automatically. Check any machine with `ai-cli doctor`.
 
 5. **gallery-dl**, via `pipx` (isolated from system Python, easy to upgrade):
    ```
@@ -309,14 +328,17 @@ All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame
    Note: `yt-dlp` was tried first (it's the better-known tool), but its Instagram extractors (both single-post and profile listing) are currently broken upstream — confirmed on the latest version. `gallery-dl` handles photos, reels, and profile batches correctly as of this writing.
 
 6. **Authentication**:
-   - `chatgpt-image` uses a dedicated, persistent Chrome profile at `bin/chrome-profile-chatgpt/` (created automatically on first run). If that profile isn't logged in, the script opens a **visible** Chrome window and waits up to 5 minutes for you to log in by hand, then carries on by itself. **This headful fallback doesn't work on a display-less VPS.** Practical workaround: do the first login on a machine with a screen, then copy the whole `bin/chrome-profile-chatgpt/` folder to the VPS — headless mode alone is enough from there on.
+   - `chatgpt-image` with a **local browser**: a persistent profile at `bin/chrome-profile-chatgpt/` (created on first run); if not logged in, a **visible** window opens for a hand login (up to 5 min), then it continues. With **browserless / a headless host**: it can't keep a profile over a remote connection, so it loads `bin/chatgpt-cookies.json` — see step 4. Alternative to browserless on a VPS: do the first login on a desktop and copy the whole `bin/chrome-profile-chatgpt/` folder over, then a locally-installed headless Chromium runs from there with no display.
    - `instagram-download*` and `tiktok-download*` use `gallery-dl --cookies-from-browser chrome`, which reads cookies from the system's *default* Chrome profile (the one you use daily, already logged into Instagram/TikTok). Without `secretstorage` installed (step 5), cookie decryption silently fails for most cookies and requests get redirected to the login page even though you're actually logged in in Chrome — if you see login-redirect errors, check that `secretstorage` is injected into the `gallery-dl` pipx venv. **`--cookies-from-browser` also doesn't work out of the box on a display-less VPS with no locally logged-in Chrome.** Practical workaround: export cookies from your local Chrome into a `cookies.txt` file (e.g. with the "Get cookies.txt LOCALLY" extension), copy it to the VPS, and swap `--cookies-from-browser chrome` for `--cookies /path/to/cookies.txt` in the scripts — not implemented yet, do this if/when the VPS move actually happens.
 
 ## Repo structure
 
 ```
 ai-cli/
+├── .env.example                   # browser / browserless env vars (copy to .env)
 ├── bin/
+│   ├── lib/
+│   │   └── browser.js             # local-vs-browserless resolution, shared
 │   ├── chatgpt-image.js            # command: chatgpt-image
 │   ├── instagram-download.js       # command: instagram-download
 │   ├── instagram-download-batch.js # command: instagram-download-batch
@@ -332,8 +354,9 @@ ai-cli/
 │   ├── watermark-image.js           # command: watermark-image
 │   ├── watermark-video.js           # command: watermark-video
 │   ├── redact-faces.js              # command: redact-faces
-│   ├── ai-cli.js                    # command: ai-cli (lists all commands)
-│   └── chrome-profile-chatgpt/     # persistent Chrome profile (ChatGPT login cookies) — don't commit this
+│   ├── ai-cli.js                    # command: ai-cli (lists all commands; `ai-cli doctor`)
+│   ├── chatgpt-cookies.json        # ChatGPT cookies for the browserless path — git-ignored
+│   └── chrome-profile-chatgpt/     # persistent browser profile (ChatGPT login) — git-ignored
 ├── package.json
 └── README.md
 ```
