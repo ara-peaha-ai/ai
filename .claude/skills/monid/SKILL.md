@@ -35,7 +35,7 @@ monid --version
 
 - `monid` is not found (not installed).
 - The CLI warned that a newer version is available.
-- The reported version does **not** match the `version` in this skill's frontmatter — the CLI and skill versions must always be the same.
+- The reported version does **not** match the `version` in this skill's frontmatter (if they differ, update both the CLI and this skill file to the latest).
 
 **Setup steps (same for a fresh install and for an update):**
 
