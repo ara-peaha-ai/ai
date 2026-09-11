@@ -360,3 +360,10 @@ ai-cli/
 ├── package.json
 └── README.md
 ```
+
+## Todo
+
+##todo @giovanni
+
+- this repo becomes the ai-server (to distinguish from the pay-server) and the existing tools a small part of it. oppure no, rimane quello che 
+- add languagetool selfhosted o meglio https://github.com/rayliuca/grammared-language con intregato modello ai leggero. 
