@@ -269,6 +269,64 @@ upscale ./animation-frames              # 2x every image -> animation-frames@2x/
 - Recognised image extensions: `.jpg .jpeg .png .webp .bmp .tif .tiff`. A folder input skips everything else.
 - Output: a file becomes `<name>@<N>x.<ext>` next to the input; a folder fans out to a sibling `<folder>@<N>x/` with the same file names. Originals are never touched.
 
+### `heic-to-jpg`
+Converts an iPhone `.heic`/`.heif` image, or every one in a folder, to `.jpg`.
+
+```
+heic-to-jpg ./IMG_0001.heic             # -> IMG_0001.jpg
+heic-to-jpg --quality 85 ./photo.heic   # -> photo.jpg, quality 85
+heic-to-jpg ./camera-roll               # every .heic/.heif in the folder -> .jpg
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | `.heic`/`.heif` file **or** folder of them | positional argument, first non-flag arg |
+| `--quality` | no | 1-100 | JPEG output quality (default: `92`) |
+| `--keep` | no | — | keep the original `.heic`/`.heif` file(s) instead of deleting them |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Wraps `convert <in> -auto-orient -quality N <out.jpg>` — `-auto-orient` bakes in the EXIF rotation iPhone HEIC files carry, so the JPEG isn't sideways.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+
+### `webp-to-jpg`
+Converts a `.webp` image, or every one in a folder, to `.jpg`.
+
+```
+webp-to-jpg ./photo.webp                # -> photo.jpg, photo.webp deleted
+webp-to-jpg --keep ./photo.webp         # -> photo.jpg, photo.webp preserved
+webp-to-jpg ./icons                     # every .webp in the folder -> .jpg
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | `.webp` file **or** folder of them | positional argument, first non-flag arg |
+| `--keep` | no | — | keep the original `.webp` file(s) instead of deleting them |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Wraps `ffmpeg -i <in> <out.jpg>`.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+- Ported from a `webptojpg()` bash function that used to live in `~/.bashrc` (removed from there — this is now the canonical version).
+
+### `image-to-jpg`
+One command for any supported source format, dispatched by file extension — same behaviour as `webp-to-jpg` / `heic-to-jpg`, just picked automatically. Currently supports `.webp`, `.heic`, `.heif`; a folder input can mix formats freely.
+
+```
+image-to-jpg ./photo.webp               # -> photo.jpg, photo.webp deleted
+image-to-jpg ./IMG_0001.heic            # -> IMG_0001.jpg, IMG_0001.heic deleted
+image-to-jpg --keep ./photo.heic        # -> photo.jpg, photo.heic preserved
+image-to-jpg ./camera-roll              # every supported file in the folder -> .jpg
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | supported image file **or** folder of them | positional argument, first non-flag arg |
+| `--quality` | no | 1-100 | JPEG output quality — ImageMagick-based formats only (`.heic`/`.heif`); ignored for `.webp` (default: `92`) |
+| `--keep` | no | — | keep the original file(s) instead of deleting them |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Extensions are looked up in a `CONVERTERS` map at the top of `bin/image-to-jpg.js` — adding a new source format later means adding one entry there, nothing else changes.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+
 ### `ai-cli`
 Lists all commands in this toolbox with a short description.
 
@@ -277,7 +335,7 @@ ai-cli --help
 ai-cli doctor    # which browser chatgpt-image would use here (local family / browserless / none)
 ```
 
-All sixteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, and `watermark-video` additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale` requires `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All nineteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `webp-to-jpg`, and `image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -349,6 +407,9 @@ ai-cli/
 │   ├── blur-video.js                # command: blur-video
 │   ├── text-overlay.js              # command: text-overlay
 │   ├── upscale.js                   # command: upscale
+│   ├── heic-to-jpg.js                # command: heic-to-jpg
+│   ├── webp-to-jpg.js                # command: webp-to-jpg
+│   ├── image-to-jpg.js               # command: image-to-jpg
 │   ├── share-qr.js                  # command: share-qr
 │   ├── search-string.js             # command: search-string
 │   ├── watermark-image.js           # command: watermark-image
