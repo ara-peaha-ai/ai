@@ -353,7 +353,9 @@ All nineteen commands support `--help` / `-h`. `get-first-frame`, `get-last-fram
    npm install
    npm link
    ```
-   After `npm link`, all sixteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all nineteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+
+   **Whenever a new command is added to `bin` in `package.json`, re-run `npm link`** — it's not automatic, and an existing link doesn't pick up new entries on its own. Until then the new command resolves as `command not found` even though the file is in the repo.
 
 4. **Browser (for `chatgpt-image`)** — only this command needs a browser; the download commands use `gallery-dl`.
 
