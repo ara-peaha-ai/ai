@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const args = process.argv.slice(2);
-const input = args.find((a) => !a.startsWith('-'));
+const input = args.find((a) => !a.startsWith('-')) || '.';
 const keep = args.includes('--keep');
 
 const isWebpFile = (f) => path.extname(f).toLowerCase() === '.webp';
@@ -40,12 +40,12 @@ if (args.includes('--selftest')) {
   process.exit(0);
 }
 
-if (args.includes('--help') || args.includes('-h') || !input) {
+if (args.includes('--help') || args.includes('-h')) {
   console.error(
     [
-      'Usage: webp-to-jpg [--keep] <input>',
+      'Usage: webp-to-jpg [--keep] [input]',
       '',
-      '  <input>          a .webp file, or a folder of them (processed in bulk)',
+      '  [input]          a .webp file, or a folder of them (processed in bulk) — defaults to "."',
       '  --keep           keep the original .webp file(s) instead of deleting them',
       '  --help / -h      print usage and exit',
       '',

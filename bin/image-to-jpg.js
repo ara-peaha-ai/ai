@@ -21,7 +21,7 @@ const getFlag = (name, fallback) => {
 
 const input = args.find(
   (a, i) => !a.startsWith('-') && !(i > 0 && VALUE_FLAGS.has(args[i - 1]))
-);
+) || '.';
 const quality = Number(getFlag('--quality', '92'));
 const keep = args.includes('--keep');
 
@@ -69,12 +69,12 @@ if (args.includes('--selftest')) {
 
 const extList = Object.keys(CONVERTERS).join(', ');
 
-if (args.includes('--help') || args.includes('-h') || !input || !(quality > 0 && quality <= 100)) {
+if (args.includes('--help') || args.includes('-h') || !(quality > 0 && quality <= 100)) {
   console.error(
     [
-      `Usage: image-to-jpg [--quality N] [--keep] <input>        (0 < N <= 100, default 92)`,
+      `Usage: image-to-jpg [--quality N] [--keep] [input]        (0 < N <= 100, default 92)`,
       '',
-      `  <input>          an image file (${extList}), or a folder of them (bulk)`,
+      `  [input]          an image file (${extList}), or a folder of them (bulk) — defaults to "."`,
       '  --quality <N>    JPEG output quality, ImageMagick-based formats only  [92]',
       '  --keep           keep the original file(s) instead of deleting them',
       '  --help / -h      print usage and exit',

@@ -13,7 +13,7 @@ const getFlag = (name, fallback) => {
 
 const input = args.find(
   (a, i) => !a.startsWith('-') && !(i > 0 && VALUE_FLAGS.has(args[i - 1]))
-);
+) || '.';
 const quality = Number(getFlag('--quality', '92'));
 const keep = args.includes('--keep');
 
@@ -51,12 +51,12 @@ if (args.includes('--selftest')) {
   process.exit(0);
 }
 
-if (args.includes('--help') || args.includes('-h') || !input || !(quality > 0 && quality <= 100)) {
+if (args.includes('--help') || args.includes('-h') || !(quality > 0 && quality <= 100)) {
   console.error(
     [
-      'Usage: heic-to-jpg [--quality N] [--keep] <input>        (0 < N <= 100, default 92)',
+      'Usage: heic-to-jpg [--quality N] [--keep] [input]        (0 < N <= 100, default 92)',
       '',
-      '  <input>          a .heic/.heif file, or a folder of them (processed in bulk)',
+      '  [input]          a .heic/.heif file, or a folder of them (processed in bulk) — defaults to "."',
       '  --quality <N>    JPEG output quality                              [92]',
       '  --keep           keep the original .heic/.heif file(s) instead of deleting them',
       '  --help / -h      print usage and exit',

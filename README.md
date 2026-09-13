@@ -276,11 +276,12 @@ Converts an iPhone `.heic`/`.heif` image, or every one in a folder, to `.jpg`.
 heic-to-jpg ./IMG_0001.heic             # -> IMG_0001.jpg
 heic-to-jpg --quality 85 ./photo.heic   # -> photo.jpg, quality 85
 heic-to-jpg ./camera-roll               # every .heic/.heif in the folder -> .jpg
+heic-to-jpg                             # every .heic/.heif in the current folder -> .jpg
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | `.heic`/`.heif` file **or** folder of them | positional argument, first non-flag arg |
+| `[input]` | no | `.heic`/`.heif` file **or** folder of them | positional argument, first non-flag arg — defaults to `.` (current folder) |
 | `--quality` | no | 1-100 | JPEG output quality (default: `92`) |
 | `--keep` | no | — | keep the original `.heic`/`.heif` file(s) instead of deleting them |
 | `--help` / `-h` | no | — | print usage and exit |
@@ -295,11 +296,12 @@ Converts a `.webp` image, or every one in a folder, to `.jpg`.
 webp-to-jpg ./photo.webp                # -> photo.jpg, photo.webp deleted
 webp-to-jpg --keep ./photo.webp         # -> photo.jpg, photo.webp preserved
 webp-to-jpg ./icons                     # every .webp in the folder -> .jpg
+webp-to-jpg                             # every .webp in the current folder -> .jpg
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | `.webp` file **or** folder of them | positional argument, first non-flag arg |
+| `[input]` | no | `.webp` file **or** folder of them | positional argument, first non-flag arg — defaults to `.` (current folder) |
 | `--keep` | no | — | keep the original `.webp` file(s) instead of deleting them |
 | `--help` / `-h` | no | — | print usage and exit |
 
@@ -315,11 +317,12 @@ image-to-jpg ./photo.webp               # -> photo.jpg, photo.webp deleted
 image-to-jpg ./IMG_0001.heic            # -> IMG_0001.jpg, IMG_0001.heic deleted
 image-to-jpg --keep ./photo.heic        # -> photo.jpg, photo.heic preserved
 image-to-jpg ./camera-roll              # every supported file in the folder -> .jpg
+image-to-jpg                            # every supported file in the current folder -> .jpg
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | supported image file **or** folder of them | positional argument, first non-flag arg |
+| `[input]` | no | supported image file **or** folder of them | positional argument, first non-flag arg — defaults to `.` (current folder) |
 | `--quality` | no | 1-100 | JPEG output quality — ImageMagick-based formats only (`.heic`/`.heif`); ignored for `.webp` (default: `92`) |
 | `--keep` | no | — | keep the original file(s) instead of deleting them |
 | `--help` / `-h` | no | — | print usage and exit |
