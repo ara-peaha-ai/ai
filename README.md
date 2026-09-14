@@ -25,6 +25,25 @@ chatgpt-image --image ./photo.jpg --prompt "make the background blue"
 - **Auth (browserless / headless)**: no persistent profile is possible over a remote connection, so it loads `bin/chatgpt-cookies.json` (generate it on a desktop with `chatgpt-image --dump-cookies`, copy it over, or point `CHATGPT_COOKIES_FILE` elsewhere). Stale/missing cookies fail with an explicit message.
 - Output: saved next to the input file as `<input-name>-mod.<ext>` (e.g. `photo-mod.png`).
 
+### `create-virtual-ambassador`
+Uploads every image in a folder to ChatGPT in one message with a fixed prompt asking for a derived (not identical) avatar, and saves the result — built to turn a `select-best-photos` shortlist into one usable avatar image.
+
+```
+create-virtual-ambassador                    # uploads everything in ./references
+create-virtual-ambassador ./some-photos
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `[images-dir]` | no | folder of images | positional argument, first non-flag arg — defaults to `./references` |
+| `--dump-cookies` | no | — | local login only: save `chatgpt-cookies.json` for use on a headless host, then exit |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Shares its ChatGPT login/session (`bin/chrome-profile-chatgpt/`, `bin/chatgpt-cookies.json`) with `chatgpt-image` — see that section above for the browser/auth details, identical here.
+- Prompt sent (fixed, not configurable): *"Create a model derived from the input images attached to this prompt. Preserve the distinctive features of the original model, but make it resemble the original without being identical. Return the output with a 1:1 layout and a transparent background."*
+- Output: `avatar/genesis.<ext>` under the **current directory** (not `[images-dir]`) — extension follows whatever ChatGPT returns (typically `.png` for a transparent background).
+- If ChatGPT refuses on content-guideline grounds (nudity/sexuality/erotic content), this has no way to tell which of the uploaded images triggered it — it prints the refusal and the list of uploaded files so you can remove the suspect one by hand and try again. No automatic retry.
+
 ### `instagram-download`
 Downloads a single Instagram reel, post, or photo.
 
@@ -407,7 +426,7 @@ ai-cli --help
 ai-cli doctor    # which browser chatgpt-image would use here (local family / browserless / none)
 ```
 
-All twenty-two commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `webp-to-jpg`, `image-to-jpg` (for `.webp` input), and `select-best-photos` (to extract video first-frames) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video`, and `select-best-photos` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `select-best-photos` additionally pulls in `@tensorflow/tfjs-node` + several `@tensorflow-models/*` packages and `@vladmandic/face-api` (also via `npm install`, CPU-only, no GPU/system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All twenty-three commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `webp-to-jpg`, `image-to-jpg` (for `.webp` input), and `select-best-photos` (to extract video first-frames) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video`, and `select-best-photos` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `select-best-photos` additionally pulls in `@tensorflow/tfjs-node` + several `@tensorflow-models/*` packages and `@vladmandic/face-api` (also via `npm install`, CPU-only, no GPU/system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -425,7 +444,7 @@ All twenty-two commands support `--help` / `-h`. `get-first-frame`, `get-last-fr
    npm install
    npm link
    ```
-   After `npm link`, all twenty-two commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all twenty-three commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
    **Whenever a new command is added to `bin` in `package.json`, re-run `npm link`** — it's not automatic, and an existing link doesn't pick up new entries on its own. Until then the new command resolves as `command not found` even though the file is in the repo.
 
@@ -471,8 +490,10 @@ ai-cli/
 ├── bin/
 │   ├── lib/
 │   │   ├── browser.js             # local-vs-browserless resolution, shared
-│   │   └── sort-media.js          # moves files into img/ + vid/, shared by the batch downloaders
+│   │   ├── sort-media.js          # moves files into img/ + vid/, shared by the batch downloaders
+│   │   └── chatgpt-session.js     # ChatGPT login/cookies/page automation, shared by chatgpt-image + create-virtual-ambassador
 │   ├── chatgpt-image.js            # command: chatgpt-image
+│   ├── create-virtual-ambassador.js # command: create-virtual-ambassador
 │   ├── instagram-download.js       # command: instagram-download
 │   ├── instagram-download-batch.js # command: instagram-download-batch
 │   ├── tiktok-download.js          # command: tiktok-download

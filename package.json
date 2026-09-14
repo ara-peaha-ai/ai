@@ -28,7 +28,8 @@
     "watermark-image": "./bin/watermark-image.js",
     "watermark-video": "./bin/watermark-video.js",
     "redact-faces": "./bin/redact-faces.js",
-    "select-best-photos": "./bin/select-best-photos.js"
+    "select-best-photos": "./bin/select-best-photos.js",
+    "create-virtual-ambassador": "./bin/create-virtual-ambassador.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
