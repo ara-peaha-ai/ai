@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const { sortIntoImgVid } = require('./lib/sort-media');
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('-'));
@@ -41,6 +42,10 @@ if (result.error) {
   console.error('❌ gallery-dl not found. Install with: pipx install gallery-dl');
   process.exit(1);
 }
+
+const { images, videos } = sortIntoImgVid(OUTPUT_DIR);
+console.log(`📂 sorted: ${images} image(s) -> ${OUTPUT_DIR}/img, ${videos} video(s) -> ${OUTPUT_DIR}/vid`);
+
 if (result.status !== 0) {
   console.error('❌ Download failed. If this keeps happening, log into tiktok.com in Chrome and retry.');
 }

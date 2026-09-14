@@ -54,6 +54,7 @@ instagram-download-batch someusername
 
 - Auth: same as `instagram-download` (`--cookies-from-browser chrome`).
 - Output: saves into an `instagram/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `instagram-download`. Keeps an `instagram/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- After each run, images are moved into `instagram/img/` and reels/videos into `instagram/vid/` (flattening any per-highlight subfolder gallery-dl created), regardless of exit status — so a partial download still gets sorted.
 
 ### `tiktok-download`
 Downloads a single TikTok video or photo post.
@@ -84,6 +85,7 @@ tiktok-download-batch someusername
 
 - Auth: same as `tiktok-download` (`--cookies-from-browser chrome`).
 - Output: saves into a `tiktok/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `tiktok-download`. Keeps a `tiktok/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- After each run, images are moved into `tiktok/img/` and videos into `tiktok/vid/`, regardless of exit status — so a partial download still gets sorted.
 
 ### `get-first-frame`
 Extracts the first frame of a video as a JPEG.
@@ -401,7 +403,8 @@ ai-cli/
 ├── .env.example                   # browser / browserless env vars (copy to .env)
 ├── bin/
 │   ├── lib/
-│   │   └── browser.js             # local-vs-browserless resolution, shared
+│   │   ├── browser.js             # local-vs-browserless resolution, shared
+│   │   └── sort-media.js          # moves files into img/ + vid/, shared by the batch downloaders
 │   ├── chatgpt-image.js            # command: chatgpt-image
 │   ├── instagram-download.js       # command: instagram-download
 │   ├── instagram-download-batch.js # command: instagram-download-batch
