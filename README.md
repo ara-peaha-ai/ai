@@ -1,6 +1,6 @@
 # ai-cli toolbox
 
-Terminal commands for AI/media workflows: drives a local Chromium-family browser or a remote browserless.io instance (via puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram/TikTok) using already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
+Terminal commands for AI/media workflows: drives a local Chromium-family browser or a remote browserless.io instance (via puppeteer-core, for ChatGPT) or `gallery-dl` (for Instagram/TikTok/X) using already-authenticated sessions instead of reinventing login/scraping, plus a set of `ffmpeg`/ImageMagick-based image and video utilities.
 
 ## Commands
 
@@ -55,6 +55,7 @@ instagram-download-batch someusername
 - Auth: same as `instagram-download` (`--cookies-from-browser chrome`).
 - Output: saves into an `instagram/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `instagram-download`. Keeps an `instagram/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
 - After each run, images are moved into `instagram/img/` and reels/videos into `instagram/vid/` (flattening any per-highlight subfolder gallery-dl created), regardless of exit status — so a partial download still gets sorted.
+- Also downloads the profile's current avatar to `instagram/profile.<ext>` — used by `select-best-photos` to identify which recurring face in the feed is the account owner.
 
 ### `tiktok-download`
 Downloads a single TikTok video or photo post.
@@ -86,6 +87,39 @@ tiktok-download-batch someusername
 - Auth: same as `tiktok-download` (`--cookies-from-browser chrome`).
 - Output: saves into a `tiktok/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `tiktok-download`. Keeps a `tiktok/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
 - After each run, images are moved into `tiktok/img/` and videos into `tiktok/vid/`, regardless of exit status — so a partial download still gets sorted.
+- Also downloads the profile's current avatar to `tiktok/profile.<ext>` — used by `select-best-photos` to identify which recurring face in the feed is the account owner.
+
+### `x-download`
+Downloads a single X (Twitter) post's media.
+
+```
+x-download https://x.com/someuser/status/XXXX
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<url>` | yes | X/Twitter post URL | positional argument, first non-flag arg |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Auth: shells out to `gallery-dl --cookies-from-browser chrome`, same as the other platform commands.
+- Output: saved in the current directory as `handle-publishTimestamp_num.ext`; `_num` only matters for multi-image posts.
+
+### `x-download-batch`
+Downloads every media post from an X (Twitter) profile — text-only posts and replies without a photo/video are skipped entirely (gallery-dl's own "media" tab filter, not a client-side one).
+
+```
+x-download-batch someusername
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<username-or-url>` | yes | username or full profile URL | positional argument, first non-flag arg |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Auth: same as `x-download` (`--cookies-from-browser chrome`).
+- Output: saves into an `x/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `x-download`. Keeps an `x/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- After each run, images are moved into `x/img/` and videos into `x/vid/`, regardless of exit status — so a partial download still gets sorted.
+- Also downloads the profile's current avatar to `x/profile.<ext>` — used by `select-best-photos` to identify which recurring face in the feed is the account owner.
 
 ### `get-first-frame`
 Extracts the first frame of a video as a JPEG.
@@ -332,6 +366,39 @@ image-to-jpg                            # every supported file in the current fo
 - Extensions are looked up in a `CONVERTERS` map at the top of `bin/image-to-jpg.js` — adding a new source format later means adding one entry there, nothing else changes.
 - Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
 
+### `select-best-photos`
+Picks the best, most representative solo photos of one person out of a downloaded feed — built for curating profile-photo candidates. Run it from the folder that holds the platform subfolders (`instagram/`, `tiktok/`, `x/` — whichever `*-download-batch` produced — plus `web/` for anything curated by hand in the same `img/`+`vid/`+`profile.*` shape) that exist; it pulls from all of them at once. Pointed at a single account root instead (one folder with `img/`, `vid/`, `profile.*` directly in it, not wrapped in a platform subfolder), it works on just that one.
+
+```
+select-best-photos                                       # ./instagram, ./tiktok, ./x, ./web — whichever exist
+select-best-photos --count 10 ./fatima-olana
+select-best-photos --profile-photo ./me.jpg ./fatima-olana
+cd instagram && select-best-photos                       # single-platform mode, profile.jpg here picked up automatically
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `[folder]` | no | root folder | positional argument, first non-flag arg — defaults to `.` |
+| `--count` | no | integer | how many photos to select (default: `20`) |
+| `--profile-photo` | no | image file path | reference photo to match the subject against — auto-detects every `profile.*` found if omitted |
+| `--full-body-min` | no | integer | try to reserve this many full-body shots among the selection, if any exist (default: `3`) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+Pipeline, in order:
+1. **Roots**: if `[folder]` contains an `instagram/`, `tiktok/`, `x/`, and/or `web/` subfolder, all of those become roots (mixed together into one pool); otherwise `[folder]` itself is the one root — img/ for images, vid/ for video first-frames, falling back to scanning `[folder]` directly if it has no `img/` subfolder (works as a plain "folder of photos" tool too).
+2. **Candidates**: every image in each root's `img/`, plus a first frame extracted straight into memory (never written to disk) from every video in each root's `vid/`.
+3. **One whole person, not a crop-off close-up of just a face fragment**: `@tensorflow-models/coco-ssd` counts people in frame — anything with 0 or more than 1 person is dropped (so group shots are out).
+4. **Face detection + 128-d descriptor**: `@vladmandic/face-api` (`ssdMobilenetv1`, not the faster `tinyFaceDetector` — the tiny one missed faces in tight/tilted-head crops in testing). No face found → dropped.
+5. **Whose photo is it**: matched against `--profile-photo`, or every auto-detected `profile.*` found (one per platform when pulling from several — dropped there automatically by `*-download-batch` when it runs, see above), by face-descriptor distance against any of them. With none available, falls back to single-linkage clustering across all candidates and keeps the largest cluster (majority-vote guess at who the recurring subject is) — noisier, so a profile photo is the better path when you have one.
+6. **Quality scoring**: sharpness (Laplacian variance), resolution, exposure/contrast (`sharp().stats()`), and how prominent the face is in frame — combined into one score per item, all computed locally, no model needed for this part.
+7. **Shot type** (`@tensorflow-models/pose-detection`, MoveNet): classified as headshot / half-body / full-body from visible keypoints — used only to try to reserve `--full-body-min` slots for full-body shots when available, not as a filter; close-ups and half-body shots are fine on their own.
+8. **Final N**: ranked by quality, then filled via a diversity-aware pass (`@tensorflow-models/mobilenet` embeddings + maximal-marginal-relevance) so the selection doesn't end up as 20 near-duplicate shots from the same burst — mixing candidates from every platform in the same pool.
+
+- Runs entirely on CPU via `@tensorflow/tfjs-node` — confirmed working on Node 22 with no GPU. `@vladmandic/face-api` ships its model weights inside the npm package (fully offline); `coco-ssd` and `pose-detection` download their weights from `storage.googleapis.com`, `mobilenet` from `tfhub.dev`, on first run (a few tens of MB total) — pre-warm this with a throwaway run before going offline on a VPS. A VPN that blocks or reroutes either host will fail this step with a plain `fetch failed` — disconnect it and retry if that happens.
+- Video candidates are just a single extracted frame (typically the very first), not the best moment in the clip — a reel's best shot mid-video won't be picked up this way.
+- This is heuristic, not a validated classifier — expect occasional misses (person-detection can miss extreme crops, the identity match can be fooled by very similar-looking faces) and treat the output as a shortlist to skim, not a final answer.
+- Output: `<folder>/references/` — images are copied from `img/`, video frames are saved as `<video-name>-first-frame.jpg`, both prefixed with the platform name (`instagram-`, `tiktok-`, `x-`, `web-`) when pulling from more than one, to avoid same-name collisions. Only items that make the final selection are ever written; everything else stays in memory for the duration of the run and is discarded. Originals in `img/`/`vid/` are never touched or moved.
+
 ### `ai-cli`
 Lists all commands in this toolbox with a short description.
 
@@ -340,7 +407,7 @@ ai-cli --help
 ai-cli doctor    # which browser chatgpt-image would use here (local family / browserless / none)
 ```
 
-All nineteen commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `webp-to-jpg`, and `image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
+All twenty-two commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `webp-to-jpg`, `image-to-jpg` (for `.webp` input), and `select-best-photos` (to extract video first-frames) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` requires a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video`, and `select-best-photos` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `select-best-photos` additionally pulls in `@tensorflow/tfjs-node` + several `@tensorflow-models/*` packages and `@vladmandic/face-api` (also via `npm install`, CPU-only, no GPU/system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux).
 
 ## Setup from scratch (to replicate on a VPS)
 
@@ -358,7 +425,7 @@ All nineteen commands support `--help` / `-h`. `get-first-frame`, `get-last-fram
    npm install
    npm link
    ```
-   After `npm link`, all nineteen commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
+   After `npm link`, all twenty-two commands listed above are available from any directory (as long as the shell's `PATH` includes the npm global bin dir — true by default).
 
    **Whenever a new command is added to `bin` in `package.json`, re-run `npm link`** — it's not automatic, and an existing link doesn't pick up new entries on its own. Until then the new command resolves as `command not found` even though the file is in the repo.
 
@@ -394,7 +461,7 @@ All nineteen commands support `--help` / `-h`. `get-first-frame`, `get-last-fram
 
 6. **Authentication**:
    - `chatgpt-image` with a **local browser**: a persistent profile at `bin/chrome-profile-chatgpt/` (created on first run); if not logged in, a **visible** window opens for a hand login (up to 5 min), then it continues. With **browserless / a headless host**: it can't keep a profile over a remote connection, so it loads `bin/chatgpt-cookies.json` — see step 4. Alternative to browserless on a VPS: do the first login on a desktop and copy the whole `bin/chrome-profile-chatgpt/` folder over, then a locally-installed headless Chromium runs from there with no display.
-   - `instagram-download*` and `tiktok-download*` use `gallery-dl --cookies-from-browser chrome`, which reads cookies from the system's *default* Chrome profile (the one you use daily, already logged into Instagram/TikTok). Without `secretstorage` installed (step 5), cookie decryption silently fails for most cookies and requests get redirected to the login page even though you're actually logged in in Chrome — if you see login-redirect errors, check that `secretstorage` is injected into the `gallery-dl` pipx venv. **`--cookies-from-browser` also doesn't work out of the box on a display-less VPS with no locally logged-in Chrome.** Practical workaround: export cookies from your local Chrome into a `cookies.txt` file (e.g. with the "Get cookies.txt LOCALLY" extension), copy it to the VPS, and swap `--cookies-from-browser chrome` for `--cookies /path/to/cookies.txt` in the scripts — not implemented yet, do this if/when the VPS move actually happens.
+   - `instagram-download*`, `tiktok-download*`, and `x-download*` use `gallery-dl --cookies-from-browser chrome`, which reads cookies from the system's *default* Chrome profile (the one you use daily, already logged into Instagram/TikTok/X). Without `secretstorage` installed (step 5), cookie decryption silently fails for most cookies and requests get redirected to the login page even though you're actually logged in in Chrome — if you see login-redirect errors, check that `secretstorage` is injected into the `gallery-dl` pipx venv. **`--cookies-from-browser` also doesn't work out of the box on a display-less VPS with no locally logged-in Chrome.** Practical workaround: export cookies from your local Chrome into a `cookies.txt` file (e.g. with the "Get cookies.txt LOCALLY" extension), copy it to the VPS, and swap `--cookies-from-browser chrome` for `--cookies /path/to/cookies.txt` in the scripts — not implemented yet, do this if/when the VPS move actually happens.
 
 ## Repo structure
 
@@ -410,6 +477,8 @@ ai-cli/
 │   ├── instagram-download-batch.js # command: instagram-download-batch
 │   ├── tiktok-download.js          # command: tiktok-download
 │   ├── tiktok-download-batch.js    # command: tiktok-download-batch
+│   ├── x-download.js                # command: x-download
+│   ├── x-download-batch.js          # command: x-download-batch
 │   ├── get-first-frame.js          # command: get-first-frame
 │   ├── get-last-frame.js           # command: get-last-frame
 │   ├── blur-video.js                # command: blur-video
@@ -423,6 +492,7 @@ ai-cli/
 │   ├── watermark-image.js           # command: watermark-image
 │   ├── watermark-video.js           # command: watermark-video
 │   ├── redact-faces.js              # command: redact-faces
+│   ├── select-best-photos.js        # command: select-best-photos
 │   ├── ai-cli.js                    # command: ai-cli (lists all commands; `ai-cli doctor`)
 │   ├── chatgpt-cookies.json        # ChatGPT cookies for the browserless path — git-ignored
 │   └── chrome-profile-chatgpt/     # persistent browser profile (ChatGPT login) — git-ignored

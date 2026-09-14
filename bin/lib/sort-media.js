@@ -4,12 +4,15 @@ const path = require('path');
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif', '.tif', '.tiff']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v']);
 
-const walk = (dir, skipDirs, acc = []) => {
+const walk = (dir, baseDir, skipDirs, acc = []) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name.startsWith('.')) continue;
+    // the extracted profile-reference file lives at "<baseDir>/profile.<ext>" —
+    // it's a reference photo, not downloaded content, so it never gets sorted.
+    if (dir === baseDir && /^profile\./.test(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!skipDirs.has(full)) walk(full, skipDirs, acc);
+      if (!skipDirs.has(full)) walk(full, baseDir, skipDirs, acc);
     } else {
       acc.push(full);
     }
@@ -26,7 +29,7 @@ const sortIntoImgVid = (baseDir) => {
   const skipDirs = new Set([imgDir, vidDir]);
 
   const counts = { images: 0, videos: 0 };
-  for (const file of walk(baseDir, skipDirs)) {
+  for (const file of walk(baseDir, baseDir, skipDirs)) {
     const ext = path.extname(file).toLowerCase();
     const destDir = IMAGE_EXT.has(ext) ? imgDir : VIDEO_EXT.has(ext) ? vidDir : null;
     if (!destDir) continue; // ponytail: unrecognised extension, leave it where it is
@@ -56,4 +59,17 @@ const sortIntoImgVid = (baseDir) => {
   return counts;
 };
 
-module.exports = { sortIntoImgVid };
+// Pulls the profile-avatar file (filename tagged "-avatar-" by our gallery-dl
+// -f format) out to a fixed "<baseDir>/profile.<ext>", so it's easy to find and
+// so it doesn't end up sorted into img/ alongside regular content. Call this
+// before sortIntoImgVid. Returns the new path, or null if no avatar file was
+// downloaded this run (e.g. -o include= didn't request one).
+const extractProfilePhoto = (baseDir) => {
+  const found = fs.readdirSync(baseDir).find((name) => /-avatar-/.test(name));
+  if (!found) return null;
+  const dest = path.join(baseDir, `profile${path.extname(found).toLowerCase()}`);
+  fs.renameSync(path.join(baseDir, found), dest);
+  return dest;
+};
+
+module.exports = { sortIntoImgVid, extractProfilePhoto, IMAGE_EXT, VIDEO_EXT };
