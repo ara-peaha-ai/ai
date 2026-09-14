@@ -34,7 +34,6 @@ const COMMANDS = [
   ['heic-to-jpg', 'Convert an iPhone .heic/.heif image (or a folder of them) to .jpg'],
   ['webp-to-jpg', 'Convert a .webp image (or a folder of them) to .jpg'],
   ['image-to-jpg', 'Convert any supported image format (.webp, .heic, .heif, ...) to .jpg'],
-  ['select-best-photos', 'Pick the N best/most representative solo photos of one person from a folder'],
   ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
   ['share-qr', 'Print/save a QR code for arbitrary text'],
   ['search-string', 'Search file names + content for a string in a directory'],

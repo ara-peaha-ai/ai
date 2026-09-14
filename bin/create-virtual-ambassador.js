@@ -31,6 +31,96 @@ const VARIANT_LABELS = ['identical', 'resembling', 'inspired'];
 // its own nudity/content classifier. Report it and let a human pick.
 const GUARDRAIL_PATTERN = /guardrails around nudity, sexuality, or erotic content/i;
 
+const FACE_SIMILARITY_URL = 'https://quantilence.com/products/face-similarity';
+// the reference photo is looked up next to the platform subfolders (the
+// web/instagram/tiktok/x + img/vid/profile.* layout *-download-batch
+// produces), in this priority order — the first one found is used for
+// every comparison.
+const REFERENCE_PLATFORM_PRIORITY = ['web', 'instagram', 'tiktok', 'x'];
+const PROFILE_NAMES = ['profile.jpg', 'profile.jpeg', 'profile.png', 'profile.webp'];
+
+const findReferencePhoto = (root) => {
+  for (const platform of REFERENCE_PLATFORM_PRIORITY) {
+    for (const name of PROFILE_NAMES) {
+      const p = path.join(root, platform, name);
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  return null;
+};
+
+// Uploads two local images to quantilence.com's free face-similarity tool and
+// reads back the match percentage. Its /api/face endpoint is rate-limited —
+// confirmed by hand while building this — so a 429 gets one retry after a
+// cooldown, then this just gives up and returns null (score is a nice-to-have,
+// not worth failing the whole run over).
+const compareFaces = async (browser, imageA, imageB, { retriesLeft = 1 } = {}) => {
+  const page = await browser.newPage();
+  try {
+    let rateLimited = false;
+    page.on('response', (res) => {
+      if (res.url().endsWith('/api/face') && res.status() === 429) rateLimited = true;
+    });
+
+    await page.goto(FACE_SIMILARITY_URL, { waitUntil: 'networkidle2' });
+    const inputs = await page.$$('input[type="file"]');
+    if (inputs.length < 2) throw new Error('face-similarity page layout changed (expected 2 file inputs)');
+    await inputs[0].uploadFile(imageA);
+    await delay(800);
+    await inputs[1].uploadFile(imageB);
+    await delay(800);
+
+    const clicked = await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Compare faces');
+      if (!btn || btn.disabled) return false;
+      btn.click();
+      return true;
+    });
+    if (!clicked) throw new Error('Compare button not found or disabled');
+
+    const deadline = Date.now() + 20000;
+    let percent = null;
+    let verdict = null;
+    while (Date.now() < deadline) {
+      if (rateLimited) break;
+      const bodyText = await page.evaluate(() => document.body.innerText);
+      const idx = bodyText.indexOf('COMPARISONS');
+      if (idx > -1) {
+        // cut before "Threshold: NN%" so that number never gets mistaken for the score
+        const thresholdIdx = bodyText.indexOf('Threshold:', idx);
+        const block = bodyText.slice(idx, thresholdIdx > -1 ? thresholdIdx : idx + 500);
+        const scoreMatch = block.match(/(\d+(?:\.\d+)?)%/);
+        if (scoreMatch) {
+          percent = parseFloat(scoreMatch[1]);
+          verdict = (block.match(/\b(Match|No match)\b/i) || [])[1] || null;
+          break;
+        }
+      }
+      await delay(1000);
+    }
+
+    if (rateLimited) {
+      if (retriesLeft > 0) {
+        console.log('   ⏳ face-similarity: rate-limited, waiting 20s before retrying...');
+        await page.close();
+        await delay(20000);
+        return compareFaces(browser, imageA, imageB, { retriesLeft: retriesLeft - 1 });
+      }
+      console.error('   ⚠️ face-similarity: still rate-limited after a retry, giving up on this score');
+      return null;
+    }
+
+    if (percent === null) {
+      console.error('   ⚠️ face-similarity: no result within 20s, giving up on this score');
+      return null;
+    }
+
+    return { percent, verdict };
+  } finally {
+    if (!page.isClosed()) await page.close();
+  }
+};
+
 const args = process.argv.slice(2);
 const dumpCookies = args.includes('--dump-cookies');
 const imagesDir = path.resolve(args.find((a) => !a.startsWith('-')) || 'references');
@@ -47,6 +137,13 @@ if (args.includes('--help') || args.includes('-h')) {
       'asking for three full-body, 1:1, transparent-background variants derived from',
       'them (near-identical / resembling / loosely inspired), and saves each as',
       '"avatar/genesis-<identical|resembling|inspired>.<ext>" in the current directory.',
+      '',
+      'Each saved variant is then scored against a reference photo via the free',
+      'face-similarity tool at quantilence.com, and the filename gets the match',
+      'percentage appended (e.g. genesis-identical-94.png). The reference is the',
+      'first "profile.*" found in <cwd>/web/, <cwd>/instagram/, <cwd>/tiktok/, then',
+      '<cwd>/x/ (the layout *-download-batch produces).',
+      'No reference found -> scoring is skipped, filenames stay unscored.',
       '',
       'If ChatGPT refuses on content-guideline grounds, this cannot tell which input',
       'image(s) triggered it — it just reports the refusal so you can remove one by',
@@ -173,6 +270,7 @@ if (!dumpCookies) {
     const outputDir = path.join(process.cwd(), 'avatar');
     fs.mkdirSync(outputDir, { recursive: true });
 
+    const savedFiles = [];
     for (let i = 0; i < images.length; i++) {
       const { url } = images[i];
       const imageBuffer = await page.evaluate(async (u) => {
@@ -202,6 +300,23 @@ if (!dumpCookies) {
       const outputPath = path.join(outputDir, `genesis-${label}.${ext}`);
       fs.writeFileSync(outputPath, Buffer.from(imageBuffer));
       console.log(`💾 ${label} -> ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
+      savedFiles.push({ label, path: outputPath });
+    }
+
+    // ---- score each saved variant against the account's reference photo ----
+    const referencePhoto = findReferencePhoto(process.cwd());
+    if (!referencePhoto) {
+      console.log('ℹ️  No profile.* found under web/instagram/tiktok/x — skipping face-similarity scoring.');
+    } else {
+      console.log(`🔍 Scoring against reference: ${referencePhoto}`);
+      for (const saved of savedFiles) {
+        const result = await compareFaces(browser, referencePhoto, saved.path);
+        if (!result) continue;
+        const scoredPath = saved.path.replace(/(\.[^.]+)$/, `-${Math.round(result.percent)}$1`);
+        fs.renameSync(saved.path, scoredPath);
+        console.log(`   ${saved.label}: ${result.percent}% ${result.verdict ? `(${result.verdict})` : ''} -> ${path.basename(scoredPath)}`);
+        await delay(8000); // the compare API is rate-limited, space requests out
+      }
     }
 
   } catch (error) {

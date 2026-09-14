@@ -25,8 +25,8 @@ const FILENAME_FORMAT = '{username}-{subcategory}-{date:%Y%m%dT%H%M%S}_{num}.{ex
 // --download-archive skips posts already downloaded on a rerun, which is
 // the whole point of hitting a profile repeatedly over time. Shared across
 // all profiles in OUTPUT_DIR since gallery-dl keys entries by post id.
-// "avatar" pulls the current profile picture too — used by select-best-photos
-// to match photos against the actual account owner instead of guessing.
+// "avatar" pulls the current profile picture too — used as a reference photo
+// (e.g. for create-virtual-ambassador's face-similarity scoring).
 const result = spawnSync(
   'gallery-dl',
   [
