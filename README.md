@@ -26,7 +26,7 @@ chatgpt-image --image ./photo.jpg --prompt "make the background blue"
 - Output: saved next to the input file as `<input-name>-mod.<ext>` (e.g. `photo-mod.png`).
 
 ### `create-virtual-ambassador`
-Uploads every image in a folder to ChatGPT in one message with a fixed prompt asking for a derived (not identical) avatar, and saves the result — built to turn a `select-best-photos` shortlist into one usable avatar image.
+Uploads every image in a folder to ChatGPT in one message with a fixed prompt asking for three full-body avatar variants derived from them, and saves each — built to turn a `select-best-photos` shortlist into a set of usable avatar candidates.
 
 ```
 create-virtual-ambassador                    # uploads everything in ./references
@@ -40,8 +40,8 @@ create-virtual-ambassador ./some-photos
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Shares its ChatGPT login/session (`bin/chrome-profile-chatgpt/`, `bin/chatgpt-cookies.json`) with `chatgpt-image` — see that section above for the browser/auth details, identical here.
-- Prompt sent (fixed, not configurable): *"Create a model derived from the input images attached to this prompt. Preserve the distinctive features of the original model, but make it resemble the original without being identical. Return the output with a 1:1 layout and a transparent background."*
-- Output: `avatar/genesis.<ext>` under the **current directory** (not `[images-dir]`) — extension follows whatever ChatGPT returns (typically `.png` for a transparent background).
+- Prompt sent (fixed, not configurable): asks for three separate full-body, 1:1, transparent-background images derived from the references — (1) near-identical to the original, (2) resembling but not the same person, (3) only loosely inspired (broad traits kept, different face/identity). One line, no literal newlines — `page.type()` presses a real Enter for `\n`, which would submit the message mid-prompt.
+- Output: `avatar/genesis-identical.<ext>`, `avatar/genesis-resembling.<ext>`, `avatar/genesis-inspired.<ext>` under the **current directory** (not `[images-dir]`) — extension follows whatever ChatGPT returns (typically `.png`). If ChatGPT returns a different number of images than three, they're saved as `avatar/genesis-1.<ext>`, `genesis-2.<ext>`, ... instead, since the identical/resembling/inspired labels only apply when the count matches the prompt's 3-item list.
 - If ChatGPT refuses on content-guideline grounds (nudity/sexuality/erotic content), this has no way to tell which of the uploaded images triggered it — it prints the refusal and the list of uploaded files so you can remove the suspect one by hand and try again. No automatic retry.
 
 ### `instagram-download`

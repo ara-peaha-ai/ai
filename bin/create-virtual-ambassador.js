@@ -17,7 +17,14 @@ const USER_DATA_DIR = path.join(__dirname, 'chrome-profile-chatgpt');
 const COOKIES_FILE = process.env.CHATGPT_COOKIES_FILE || path.join(__dirname, 'chatgpt-cookies.json');
 const CMD_NAME = 'create-virtual-ambassador';
 
-const PROMPT = 'Create a model derived from the input images attached to this prompt. Preserve the distinctive features of the original model, but make it resemble the original without being identical. Return the output with a 1:1 layout and a transparent background.';
+// ponytail: one line, no literal newlines — page.type() presses a real Enter
+// for '\n' (Puppeteer's Keyboard.type charIsKey check), which would submit
+// the message mid-prompt in ChatGPT's textarea instead of inserting a line break.
+const PROMPT = 'Using the input images attached to this prompt as reference, generate three separate portrait images of a model derived from them — as three distinct image outputs in this response, not a single grid or collage. Each output must show the full body from head to feet in a standing pose (not a close-up portrait, bust, or half-body crop), framed within a 1:1 square layout with a transparent background. First image, near-identical: closely preserve the original model\'s distinctive facial features for a faithful, close likeness. Second image, resembling: keep the general facial structure and distinctive features recognizable, but alter enough details (eyes, nose, jawline, hair, skin tone) that it resembles the original without being identical or the same person. Third image, loosely inspired: use the references only as a loose stylistic starting point — keep broad traits like hair color and body type, but generate a clearly different face/identity, not recognizable as the same person.';
+
+// order matches the 1/2/3 list in PROMPT above — used to label output files
+// when exactly three images come back (the common case).
+const VARIANT_LABELS = ['identical', 'resembling', 'inspired'];
 
 // ponytail: we can detect a guardrail refusal (the chat text says so), but we
 // have no way to tell which of the N uploaded images triggered it — that'd need
@@ -36,9 +43,10 @@ if (args.includes('--help') || args.includes('-h')) {
       '',
       '  [images-dir]   folder of reference images to upload — defaults to "./references"',
       '',
-      'Uploads every image in [images-dir] to ChatGPT in one message with a fixed',
-      'prompt asking for a derived (not identical) portrait, 1:1, transparent',
-      'background, and saves the result as "avatar/genesis.<ext>" in the current directory.',
+      'Uploads every image in [images-dir] to ChatGPT in one message with a fixed prompt',
+      'asking for three full-body, 1:1, transparent-background variants derived from',
+      'them (near-identical / resembling / loosely inspired), and saves each as',
+      '"avatar/genesis-<identical|resembling|inspired>.<ext>" in the current directory.',
       '',
       'If ChatGPT refuses on content-guideline grounds, this cannot tell which input',
       'image(s) triggered it — it just reports the refusal so you can remove one by',
@@ -122,14 +130,18 @@ if (!dumpCookies) {
     console.log('📨 Sent.');
     const sendTime = Date.now();
 
-    console.log('⏳ Waiting for generated image (or a refusal)...');
-    const timeoutMs = 150000;
+    console.log('⏳ Waiting for generated images (3 expected) or a refusal...');
+    const timeoutMs = 180000; // 3 images render slower than 1
+    const settleMs = 8000; // stop early once no new image has arrived for this long
     const deadline = Date.now() + timeoutMs;
-    let imageSrc = null;
     let refused = false;
+    let lastImageAt = null;
     while (Date.now() < deadline) {
-      const hit = matchedImageResponses.find((r) => r.time > sendTime);
-      if (hit) { imageSrc = hit.url; break; }
+      const seenNow = matchedImageResponses.filter((r) => r.time > sendTime);
+      if (seenNow.length > 0) {
+        lastImageAt = Math.max(...seenNow.map((r) => r.time));
+        if (Date.now() - lastImageAt > settleMs) break; // no new image for a while, assume done
+      }
 
       const bodyText = await page.evaluate(() => document.body.innerText);
       if (GUARDRAIL_PATTERN.test(bodyText)) { refused = true; break; }
@@ -148,43 +160,49 @@ if (!dumpCookies) {
       return;
     }
 
-    if (!imageSrc) {
+    const images = matchedImageResponses.filter((r) => r.time > sendTime);
+    if (images.length === 0) {
       const seen = allImageResponses.filter((r) => r.time > sendTime);
       console.error(`❌ No matching image response after ${timeoutMs / 1000}s. Image responses seen since send:`);
       seen.forEach((r) => console.error(`   - ${r.contentType} ${r.url}`));
       throw new Error('Generated image not found (network sniffing found no match - adjust the URL pattern above if the list is non-empty).');
     }
 
-    console.log(`🔗 Image URL: ${imageSrc}`);
-    console.log('🖼️ Image found, downloading...');
-
-    const imageBuffer = await page.evaluate(async (url) => {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-      }
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      return Array.from(new Uint8Array(arrayBuffer));
-    }, imageSrc);
-
-    if (!imageBuffer || imageBuffer.length === 0) {
-      throw new Error('Downloaded image buffer is empty!');
-    }
-    console.log(`📦 Buffer size: ${imageBuffer.length} bytes`);
-
-    let ext = 'png';
-    try {
-      const urlExt = path.extname(new URL(imageSrc).pathname);
-      if (urlExt) ext = urlExt.slice(1);
-    } catch (e) {}
+    console.log(`🖼️ ${images.length} image(s) found, downloading...`);
 
     const outputDir = path.join(process.cwd(), 'avatar');
     fs.mkdirSync(outputDir, { recursive: true });
-    const outputPath = path.join(outputDir, `genesis.${ext}`);
-    fs.writeFileSync(outputPath, Buffer.from(imageBuffer));
-    console.log(`💾 Image saved to: ${outputPath}`);
-    console.log(`📁 File size: ${fs.statSync(outputPath).size} bytes`);
+
+    for (let i = 0; i < images.length; i++) {
+      const { url } = images[i];
+      const imageBuffer = await page.evaluate(async (u) => {
+        const response = await fetch(u);
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        return Array.from(new Uint8Array(arrayBuffer));
+      }, url);
+
+      if (!imageBuffer || imageBuffer.length === 0) {
+        console.error(`   ⚠️ image ${i + 1}: downloaded buffer is empty, skipping`);
+        continue;
+      }
+
+      let ext = 'png';
+      try {
+        const urlExt = path.extname(new URL(url).pathname);
+        if (urlExt) ext = urlExt.slice(1);
+      } catch (e) {}
+
+      // labelled by prompt order (identical/resembling/inspired) when the count
+      // matches; otherwise a plain 1-based number so nothing is mislabeled.
+      const label = images.length === VARIANT_LABELS.length ? VARIANT_LABELS[i] : String(i + 1);
+      const outputPath = path.join(outputDir, `genesis-${label}.${ext}`);
+      fs.writeFileSync(outputPath, Buffer.from(imageBuffer));
+      console.log(`💾 ${label} -> ${outputPath} (${fs.statSync(outputPath).size} bytes)`);
+    }
 
   } catch (error) {
     console.error('❌ Error:', error.message);
