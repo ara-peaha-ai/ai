@@ -18,38 +18,56 @@ if (process.argv[2] === 'doctor') {
   process.exit(0);
 }
 
-const COMMANDS = [
-  ['chatgpt-image', 'Upload an image to ChatGPT with a prompt, download the result'],
-  ['instagram-download', 'Download a single Instagram reel, post, or photo'],
-  ['instagram-download-batch', 'Download every post + story highlight from an Instagram profile'],
-  ['tiktok-download', 'Download a single TikTok video or photo post'],
-  ['tiktok-download-batch', 'Download every post from a TikTok profile'],
-  ['x-download', 'Download a single X (Twitter) post\'s media'],
-  ['x-download-batch', 'Download every media post from an X (Twitter) profile'],
-  ['get-first-frame', 'Extract the first frame of a video as a JPEG'],
-  ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
-  ['blur-video', 'Blur a video from a given second to the end'],
-  ['text-overlay', 'Draw a line of text over an image or a video'],
-  ['upscale', 'Resample an image (or a folder of images) up by an integer factor'],
-  ['heic-to-jpg', 'Convert an iPhone .heic/.heif image (or a folder of them) to .jpg'],
-  ['webp-to-jpg', 'Convert a .webp image (or a folder of them) to .jpg'],
-  ['image-to-jpg', 'Convert any supported image format (.webp, .heic, .heif, ...) to .jpg'],
-  ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
-  ['share-qr', 'Print/save a QR code for arbitrary text'],
-  ['search-string', 'Search file names + content for a string in a directory'],
-  ['watermark-image', 'Tile a rotated diagonal text watermark over an image'],
-  ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
-  ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
+const AREAS = [
+  ['ai', [
+    ['chatgpt-image', 'Upload an image to ChatGPT with a prompt, download the result'],
+    ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
+    ['enhance-face', 'Restore/upscale faces in a portrait with GFPGAN (CPU, needs --with-face setup)'],
+    ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
+  ]],
+  ['social', [
+    ['instagram-download', 'Download a single Instagram reel, post, or photo'],
+    ['instagram-download-batch', 'Download every post + story highlight from an Instagram profile'],
+    ['tiktok-download', 'Download a single TikTok video or photo post'],
+    ['tiktok-download-batch', 'Download every post from a TikTok profile'],
+    ['x-download', 'Download a single X (Twitter) post\'s media'],
+    ['x-download-batch', 'Download every media post from an X (Twitter) profile'],
+  ]],
+  ['media', [
+    ['image-to-jpg', 'Convert any supported image format (.webp, .heic, .heif, .avif) to .jpg'],
+    ['heic-to-jpg', 'Convert an iPhone .heic/.heif image (or a folder of them) to .jpg'],
+    ['webp-to-jpg', 'Convert a .webp image (or a folder of them) to .jpg'],
+    ['upscale', 'Resample an image (or a folder of images) up by an integer factor'],
+    ['watermark-image', 'Tile a rotated diagonal text watermark over an image'],
+    ['text-overlay', 'Draw a line of text over an image or a video'],
+    ['get-first-frame', 'Extract the first frame of a video as a JPEG'],
+    ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
+    ['blur-video', 'Blur a video from a given second to the end'],
+    ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
+  ]],
+  ['dev', [
+    ['gitpush', 'Run the commit+push an AI agent prepared in /tmp/commit/script'],
+    ['repo-split-branches', 'Check out every branch of a repo into its own worktree folder'],
+    ['repo-join-branches', 'Fold the worktree folders back, saving uncommitted work as wip commits'],
+    ['search-string', 'Search file names + content for a string in a directory'],
+    ['fixvscode', 'Fix blank VS Code windows by clearing its GPU caches (desktop)'],
+    ['wsname', 'Name a VS Code workspace and show it in the window title (desktop)'],
+  ]],
+  ['utils', [
+    ['share-qr', 'Print/save a QR code for arbitrary text'],
+  ]],
 ];
 
-const width = Math.max(...COMMANDS.map(([name]) => name.length));
+const width = Math.max(...AREAS.flatMap(([, cmds]) => cmds.map(([name]) => name.length)));
 
 console.log('Usage: ai-cli --help | -h');
 console.log('       <command> --help   (each command below is its own CLI, run it directly)');
-console.log('');
-console.log('Commands:');
-for (const [name, desc] of COMMANDS) {
-  console.log(`  ${name.padEnd(width)}  ${desc}`);
+for (const [area, cmds] of AREAS) {
+  console.log('');
+  console.log(`${area}:`);
+  for (const [name, desc] of cmds) {
+    console.log(`  ${name.padEnd(width)}  ${desc}`);
+  }
 }
 console.log('');
 console.log('ai-cli doctor   Show which browser chatgpt-image would use');

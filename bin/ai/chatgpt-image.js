@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 const path = require('path');
 const fs = require('fs');
-const { resolveBrowser } = require('./lib/browser');
-const { delay, typeHuman, openAuthenticatedPage, runDumpCookies } = require('./lib/chatgpt-session');
+const { resolveBrowser } = require('../lib/browser');
+const { delay, typeHuman, openAuthenticatedPage, runDumpCookies } = require('../lib/chatgpt-session');
 
 // Load repo-root .env (BROWSERLESS_API_KEY, AICLI_BROWSER, ...) if present.
 try {
-  process.loadEnvFile(path.join(__dirname, '..', '.env'));
+  process.loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 } catch {
   /* no .env, or Node < 20.12 — env vars can still come from the shell */
 }

@@ -1,29 +1,24 @@
 #!/usr/bin/env node
 const { spawnSync } = require('child_process');
 const fs = require('fs');
-const { sortIntoImgVid, extractProfilePhoto } = require('./lib/sort-media');
+const { sortIntoImgVid, extractProfilePhoto } = require('../lib/sort-media');
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('-'));
 
 if (args.includes('--help') || args.includes('-h') || !target) {
-  console.error('Usage: x-download-batch <username-or-profile-url>');
+  console.error('Usage: tiktok-download-batch <username-or-profile-url>');
   process.exit(args.includes('--help') || args.includes('-h') ? 0 : 1);
 }
 
-const username = target
-  .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//, '')
-  .replace(/\/.*$/, '')
-  .replace(/^@/, '');
-const profileUrl = `https://x.com/${username}`;
+const username = target.replace(/^https?:\/\/(www\.)?tiktok\.com\/@/, '').replace(/\/.*$/, '');
+const profileUrl = `https://www.tiktok.com/@${username}`;
 
-const OUTPUT_DIR = 'x';
+const OUTPUT_DIR = 'tiktok';
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 // {subcategory} tags avatar downloads so extractProfilePhoto() can pick them out.
-// "media" is gallery-dl's own media-tab filter — only tweets that actually
-// contain a photo/video, skipping text-only tweets and replies entirely.
-const FILENAME_FORMAT = '{user[name]}-{subcategory}-{date:%Y%m%dT%H%M%S}_{num}.{extension}';
+const FILENAME_FORMAT = '{user}-{subcategory}-{date:%Y%m%dT%H%M%S}_{num}.{extension}';
 
 // --download-archive skips posts already downloaded on a rerun, which is
 // the whole point of hitting a profile repeatedly over time. Shared across
@@ -34,10 +29,14 @@ const result = spawnSync(
   'gallery-dl',
   [
     '--cookies-from-browser', 'chrome',
-    '-o', 'include=media,avatar',
+    '-o', 'include=avatar,posts',
     '-D', OUTPUT_DIR,
     '-f', FILENAME_FORMAT,
     '--download-archive', `${OUTPUT_DIR}/.downloaded.sqlite3`,
+    // TikTok 403s post pages that come in too fast after the JS challenge;
+    // throttling per-request extraction keeps it under that threshold.
+    '--sleep-request', '5-10',
+    '--retries', '8',
     profileUrl
   ],
   { stdio: 'inherit' }
@@ -55,6 +54,6 @@ const { images, videos } = sortIntoImgVid(OUTPUT_DIR);
 console.log(`📂 sorted: ${images} image(s) -> ${OUTPUT_DIR}/img, ${videos} video(s) -> ${OUTPUT_DIR}/vid`);
 
 if (result.status !== 0) {
-  console.error('❌ Download failed. If this keeps happening, log into x.com in Chrome and retry.');
+  console.error('❌ Download failed. If this keeps happening, log into tiktok.com in Chrome and retry.');
 }
 process.exit(result.status ?? 1);

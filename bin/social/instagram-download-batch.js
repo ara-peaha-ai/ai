@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { spawnSync } = require('child_process');
 const fs = require('fs');
-const { sortIntoImgVid, extractProfilePhoto } = require('./lib/sort-media');
+const { sortIntoImgVid, extractProfilePhoto } = require('../lib/sort-media');
 
 const args = process.argv.slice(2);
 const target = args.find((a) => !a.startsWith('-'));

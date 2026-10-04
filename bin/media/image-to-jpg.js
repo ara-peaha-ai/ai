@@ -9,6 +9,7 @@ const CONVERTERS = {
   '.webp': { bin: 'ffmpeg', install: 'sudo apt install ffmpeg', args: (src, out) => ['-y', '-i', src, out] },
   '.heic': { bin: 'convert', install: 'sudo apt install imagemagick', args: (src, out, q) => [src, '-auto-orient', '-quality', String(q), out] },
   '.heif': { bin: 'convert', install: 'sudo apt install imagemagick', args: (src, out, q) => [src, '-auto-orient', '-quality', String(q), out] },
+  '.avif': { bin: 'convert', install: 'sudo apt install imagemagick', args: (src, out, q) => [src, '-auto-orient', '-quality', String(q), out] },
 };
 
 const args = process.argv.slice(2);
@@ -54,6 +55,7 @@ if (args.includes('--selftest')) {
     [path.join(d, 'a.webp'), path.join(d, 'a.jpg')],
   ]);
   assert.strictEqual(isSupportedFile('foo.HEIF'), true);
+  assert.strictEqual(isSupportedFile('foo.avif'), true);
   assert.strictEqual(isSupportedFile('foo.png'), false);
   assert.deepStrictEqual(
     planJobs(d).sort(),
@@ -82,7 +84,7 @@ if (args.includes('--help') || args.includes('-h') || !(quality > 0 && quality <
       'One command for any of the supported source formats — same behaviour as',
       'the format-specific commands (webp-to-jpg, heic-to-jpg), just picked',
       'automatically from the file extension. New formats get added to the',
-      'CONVERTERS map in bin/image-to-jpg.js.',
+      'CONVERTERS map in bin/media/image-to-jpg.js.',
       '',
       'Output: <name>.jpg next to the input. By default the original is',
       'deleted after a successful conversion — pass --keep to preserve it.',
