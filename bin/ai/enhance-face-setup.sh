@@ -25,11 +25,9 @@ sed -i 's/torchvision\.transforms\.functional_tensor/torchvision.transforms.func
 
 # model weights
 mkdir -p weights
-[ -s weights/GFPGANv1.4.pth ] || curl -fL --retry 3 -o weights/GFPGANv1.4.pth \
-  https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth
-if [ "${WITH_BG:-}" = 1 ] && [ ! -s weights/RealESRGAN_x2plus.pth ]; then
-  curl -fL --retry 3 -o weights/RealESRGAN_x2plus.pth \
-    https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth
-fi
+# download to .part and rename, so an interrupted curl never leaves a file that looks ready
+fetch() { [ -s "weights/$1" ] || { curl -fL --retry 3 -o "weights/$1.part" "$2" && mv "weights/$1.part" "weights/$1"; }; }
+fetch GFPGANv1.4.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/GFPGANv1.4.pth
+[ "${WITH_BG:-}" != 1 ] || fetch RealESRGAN_x2plus.pth https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth
 
 echo "ok: enhance-face stack ready in $HERE"

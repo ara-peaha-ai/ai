@@ -11,6 +11,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --repo) repo="$2"; shift 2 ;;
     --dir) base="$2"; shift 2 ;;
+    -h|--help) sed -n '2,6p' "$0" | sed 's/^# //'; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -23,7 +24,7 @@ prefix="$(dirname "$main")/$name-"
 git -C "$main" worktree list --porcelain |
   awk '/^worktree /{w=substr($0,10)} /^branch /{print w "\t" substr($0,19)}' |
 while IFS=$'\t' read -r w b; do
-  case "$w" in "$prefix"*) ;; *) continue ;; esac
+  case "$(cd "$w" 2>/dev/null && pwd -P)" in "$prefix"*) ;; *) continue ;; esac
   if [ -n "$(git -C "$w" status --porcelain)" ]; then
     git -C "$w" add -A
     git -C "$w" commit -q -m "wip: uncommitted changes from $(basename "$w")"

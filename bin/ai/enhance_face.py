@@ -47,6 +47,8 @@ def main():
         sys.exit(f"no such file: {a.input}")
     if not os.path.isfile(GFPGAN_MODEL):
         sys.exit(f"missing model: {GFPGAN_MODEL} (run enhance-face-setup.sh)")
+    if a.bg and not os.path.isfile(BG_MODEL):
+        sys.exit(f"missing model: {BG_MODEL} (run WITH_BG=1 enhance-face-setup.sh)")
 
     img = cv2.imread(src, cv2.IMREAD_COLOR)
     if img is None:
@@ -75,7 +77,8 @@ def main():
     if ext.lower() not in (".jpg", ".jpeg", ".png", ".webp"):
         ext = ".png"
     dst = f"{root}@{a.scale}x-face{ext}"
-    cv2.imwrite(dst, output)
+    if not cv2.imwrite(dst, output):
+        sys.exit(f"cannot write: {dst}")
     print(dst)
 
 

@@ -106,6 +106,12 @@ if (jobs.length === 0) {
 
 let failed = 0;
 for (const [src, out] of jobs) {
+  // never overwrite an existing .jpg (e.g. photo.webp + photo.heic, or a jpg already there)
+  if (fs.existsSync(out)) {
+    console.error(`⚠️  skip ${src}: ${out} already exists`);
+    failed++;
+    continue;
+  }
   const conv = CONVERTERS[path.extname(src).toLowerCase()];
   const r = spawnSync(conv.bin, conv.args(src, out, quality), { stdio: 'inherit' });
   if (r.error) {

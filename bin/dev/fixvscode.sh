@@ -17,6 +17,8 @@
 
 set -euo pipefail
 
+case "${1:-}" in -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}/Code"
 SETTINGS="$CFG/User/settings.json"
 SNAP="$CFG/logs/last-restore-snapshot.txt"

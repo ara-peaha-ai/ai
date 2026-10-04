@@ -21,7 +21,7 @@ const readAllCookies = async (page) => {
   const client = await page.createCDPSession();
   const { cookies } = await client.send('Network.getAllCookies');
   return cookies
-    .filter((c) => /openai\.com$|chatgpt\.com$/.test(c.domain.replace(/^\./, '')))
+    .filter((c) => /(^|\.)(openai|chatgpt)\.com$/.test(c.domain.replace(/^\./, '')))
     .map((c) => Object.fromEntries(COOKIE_FIELDS.map((k) => [k, c[k]]).filter(([, v]) => v !== undefined)));
 };
 
@@ -94,7 +94,8 @@ const runDumpCookies = async ({ userDataDir, cookiesFile }) => {
     console.log('🔐 Log in if prompted — waiting for the chat box...');
     await page.waitForSelector(LOGGED_IN_SELECTOR, { timeout: LOGIN_TIMEOUT_MS });
     const cookies = await readAllCookies(page);
-    fs.writeFileSync(cookiesFile, JSON.stringify(cookies, null, 2));
+    fs.writeFileSync(cookiesFile, JSON.stringify(cookies, null, 2), { mode: 0o600 });
+    fs.chmodSync(cookiesFile, 0o600); // mode above only applies when the file is created
     console.log(`💾 ${cookies.length} cookies -> ${cookiesFile}`);
     console.log('   Copy this file to the headless host (same path, or set CHATGPT_COOKIES_FILE).');
   } finally {

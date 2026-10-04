@@ -9,6 +9,8 @@
 
 set -euo pipefail
 
+case "${1:-}" in -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+
 find_single_workspace() {
   local matches=()
   while IFS= read -r -d '' f; do matches+=("$f"); done < <(find . -maxdepth 1 -name '*.code-workspace' -print0)
@@ -47,7 +49,8 @@ fi
 if [ -n "$newname" ]; then
   dir="$(dirname "$file")"
   target="$dir/$newname.code-workspace"
-  mv -n "$file" "$target"
+  [ -e "$target" ] && { echo "Already exists: $target" >&2; exit 1; }
+  mv "$file" "$target"
   file="$target"
   echo "Renamed to: $file"
 fi

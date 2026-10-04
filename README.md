@@ -134,7 +134,7 @@ instagram-download-batch someusername
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Auth: same as `instagram-download` (`--cookies-from-browser chrome`).
-- Output: saves into an `instagram/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `instagram-download`. Keeps an `instagram/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- Output: saves into an `instagram/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named like `instagram-download` plus the gallery-dl subcategory after the user (`posts`, `highlights`, `avatar`, ...), which is how the avatar is recognised. Keeps an `instagram/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
 - After each run, images are moved into `instagram/img/` and reels/videos into `instagram/vid/` (flattening any per-highlight subfolder gallery-dl created), regardless of exit status — so a partial download still gets sorted.
 - Also downloads the profile's current avatar to `instagram/profile.<ext>` — used as a reference photo (e.g. for `create-virtual-ambassador`'s face-similarity scoring).
 
@@ -166,7 +166,7 @@ tiktok-download-batch someusername
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Auth: same as `tiktok-download` (`--cookies-from-browser chrome`).
-- Output: saves into a `tiktok/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `tiktok-download`. Keeps a `tiktok/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- Output: saves into a `tiktok/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named like `tiktok-download` plus the gallery-dl subcategory after the user (`posts`, `highlights`, `avatar`, ...), which is how the avatar is recognised. Keeps a `tiktok/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
 - After each run, images are moved into `tiktok/img/` and videos into `tiktok/vid/`, regardless of exit status — so a partial download still gets sorted.
 - Also downloads the profile's current avatar to `tiktok/profile.<ext>` — used as a reference photo (e.g. for `create-virtual-ambassador`'s face-similarity scoring).
 
@@ -198,7 +198,7 @@ x-download-batch someusername
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Auth: same as `x-download` (`--cookies-from-browser chrome`).
-- Output: saves into an `x/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named the same way as `x-download`. Keeps an `x/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
+- Output: saves into an `x/` subfolder in the current directory (shared across all profiles, not one folder per profile), files named like `x-download` plus the gallery-dl subcategory after the user (`posts`, `highlights`, `avatar`, ...), which is how the avatar is recognised. Keeps an `x/.downloaded.sqlite3` archive so reruns skip posts already downloaded.
 - After each run, images are moved into `x/img/` and videos into `x/vid/`, regardless of exit status — so a partial download still gets sorted.
 - Also downloads the profile's current avatar to `x/profile.<ext>` — used as a reference photo (e.g. for `create-virtual-ambassador`'s face-similarity scoring).
 
@@ -225,7 +225,7 @@ image-to-jpg                            # every supported file in the current fo
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Extensions are looked up in a `CONVERTERS` map at the top of `bin/media/image-to-jpg.js` — adding a new source format later means adding one entry there, nothing else changes.
-- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it. An existing `<name>.jpg` is never overwritten: that input is skipped and left in place, and the command exits 1.
 
 ### `heic-to-jpg`
 Converts an iPhone `.heic`/`.heif` image, or every one in a folder, to `.jpg`.
@@ -245,7 +245,7 @@ heic-to-jpg                             # every .heic/.heif in the current folde
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Wraps `convert <in> -auto-orient -quality N <out.jpg>` — `-auto-orient` bakes in the EXIF rotation iPhone HEIC files carry, so the JPEG isn't sideways.
-- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it. An existing `<name>.jpg` is never overwritten: that input is skipped and left in place, and the command exits 1.
 
 ### `webp-to-jpg`
 Converts a `.webp` image, or every one in a folder, to `.jpg`.
@@ -264,7 +264,7 @@ webp-to-jpg                             # every .webp in the current folder -> .
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Wraps `ffmpeg -i <in> <out.jpg>`.
-- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it.
+- Output: `<name>.jpg` next to the input, in the same folder. By default the original is deleted after a successful conversion — pass `--keep` to preserve it. An existing `<name>.jpg` is never overwritten: that input is skipped and left in place, and the command exits 1.
 - Ported from a `webptojpg()` bash function that used to live in `~/.bashrc` (removed from there — this is now the canonical version).
 
 ### `upscale`
@@ -604,7 +604,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). `enhance-face` needs Python 3 with `venv` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
+All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image` and `watermark-video` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
 
 ## Scraper status
 
@@ -646,3 +646,7 @@ Each command is one file, named after the command (`.js`, `.sh` or `.py`). To ad
 
 - this repo becomes the ai-server (to distinguish from the pay-server) and the existing tools a small part of it. oppure no, rimane quello che 
 - add languagetool selfhosted o meglio https://github.com/rayliuca/grammared-language con intregato modello ai leggero. 
+
+##todo @ai
+
+- From the Grok review of PR #6, not fixed there because they need a live ChatGPT / platform run to verify: `create-virtual-ambassador` waits only for an 8s idle gap (may keep 1 of 3 images), names variants by network order, matches a stale refusal from the reopened chat, and uploads faces to quantilence.com without asking; the batch downloaders look for the avatar only at the top of the output folder and flatten subfolders by basename (same name in two highlights overwrites); `enhance-face-setup.sh` has unpinned pip packages and no weight checksums.
