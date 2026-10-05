@@ -24,3 +24,6 @@ secrets.json
 # OS / editor cruft
 .DS_Store
 *.log
+
+# python bytecode
+__pycache__/
