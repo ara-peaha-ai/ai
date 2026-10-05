@@ -411,6 +411,25 @@ gitpush
 - The prepared script disarms itself after a successful run, so running `gitpush` twice is harmless (`gitpush: nothing pending`).
 - `/tmp/commit/` is one slot for the whole machine: two agents preparing pushes at the same time overwrite each other.
 
+### `gitchat`
+
+Opens a named Claude Code session for the current folder: resumes it if a session with that name already exists here, otherwise creates it. Prints which one it did before opening.
+
+```
+gitchat --name email-verein
+gitchat --ai claude --name email-verein
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `--name` / `-n` | yes | string | session name |
+| `--ai` | no | `claude` | assistant; only `claude` for now (grok has no session names) |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Looks the name up in `~/.claude/projects/<slug of the current path>/*.jsonl`: only the `custom-title` record line written by `claude -n`, never text quoted inside a transcript; the most recently modified matching session wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
+- Names cannot contain `"` or `\`.
+- Sessions are per folder: if the name exists only in another folder, it says so and creates a new one here.
+
 ### `repo-split-branches`
 
 Checks out every branch of a GitHub repo into its own folder (a git worktree), so several branches can be open side by side without switching.
@@ -596,7 +615,8 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 | Alias / function | What it does |
 |---|---|
 | `t <name>` | Sets a fixed title on the current terminal tab |
-| `tc <name>` | `t` + starts a Claude Code session with that name |
+| `tc <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it |
+| `tcm <name>` | inside a repo: `git switch main`, `git pull --ff-only`, then `tc <name>`; stops if the tree is dirty or the pull is not a fast-forward |
 | `tg <name>` | `t` + starts Grok |
 | `rgcode <pattern>` | `rg` skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `__pycache__`, `.next` |
 | `killproton` | Force-kills ProtonVPN |
@@ -632,7 +652,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay
-│   ├── dev/                        # gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
