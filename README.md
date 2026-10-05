@@ -426,7 +426,8 @@ gitchat --ai claude --name email-verein
 | `--ai` | no | `claude` | assistant; only `claude` for now (grok has no session names) |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Looks the name up in `~/.claude/projects/<current folder>/*.jsonl` (the `customTitle` record written by `claude -n`); the most recent match wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
+- Looks the name up in `~/.claude/projects/<slug of the current path>/*.jsonl`: only the `custom-title` record line written by `claude -n`, never text quoted inside a transcript; the most recently modified matching session wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
+- Names cannot contain `"` or `\`.
 - Sessions are per folder: if the name exists only in another folder, it says so and creates a new one here.
 
 ### `repo-split-branches`
