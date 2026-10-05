@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# After `git pull`: re-install when the command list, dependencies or installer changed.
+# Edits to existing scripts need nothing: the global commands are symlinks into this repo.
+git diff --name-only ORIG_HEAD HEAD | grep -qxE 'package(-lock)?\.json|install\.sh' && ./install.sh
+exit 0

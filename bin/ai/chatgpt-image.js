@@ -1,22 +1,19 @@
 #!/usr/bin/env node
-const puppeteer = require('puppeteer-core');
 const path = require('path');
 const fs = require('fs');
-const { openBrowser, resolveBrowser, isHeadlessBox } = require('./lib/browser');
+const { resolveBrowser } = require('../lib/browser');
+const { delay, typeHuman, openAuthenticatedPage, runDumpCookies } = require('../lib/chatgpt-session');
 
 // Load repo-root .env (BROWSERLESS_API_KEY, AICLI_BROWSER, ...) if present.
 try {
-  process.loadEnvFile(path.join(__dirname, '..', '.env'));
+  process.loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 } catch {
   /* no .env, or Node < 20.12 — env vars can still come from the shell */
 }
 
 const USER_DATA_DIR = path.join(__dirname, 'chrome-profile-chatgpt');
 const COOKIES_FILE = process.env.CHATGPT_COOKIES_FILE || path.join(__dirname, 'chatgpt-cookies.json');
-const LOGIN_TIMEOUT_MS = 5 * 60 * 1000; // time given to log in by hand in the headful window
-const LOGGED_IN_SELECTOR = '#prompt-textarea';
-const START_URL = 'https://chatgpt.com/';
-const LAUNCH_ARGS = ['--disable-blink-features=AutomationControlled', '--no-sandbox'];
+const CMD_NAME = 'chatgpt-image';
 
 const args = process.argv.slice(2);
 const dumpCookies = args.includes('--dump-cookies');
@@ -52,120 +49,10 @@ if (!dumpCookies && !fs.existsSync(imagePath)) {
   process.exit(1);
 }
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function typeHuman(page, selector, text) {
-  await page.click(selector);
-  for (let char of text) {
-    await page.type(selector, char, { delay: Math.floor(Math.random() * 120) + 80 });
-  }
-}
-
-const COOKIE_FIELDS = ['name', 'value', 'domain', 'path', 'expires', 'httpOnly', 'secure', 'sameSite'];
-
-async function readAllCookies(page) {
-  const client = await page.createCDPSession();
-  const { cookies } = await client.send('Network.getAllCookies');
-  return cookies
-    .filter((c) => /openai\.com$|chatgpt\.com$/.test(c.domain.replace(/^\./, '')))
-    .map((c) => Object.fromEntries(COOKIE_FIELDS.map((k) => [k, c[k]]).filter(([, v]) => v !== undefined)));
-}
-
-async function loadCookiesFromFile(page) {
-  if (!fs.existsSync(COOKIES_FILE)) {
-    throw new Error(
-      `No cookie file at ${COOKIES_FILE}. On a machine with a display run \`chatgpt-image --dump-cookies\`, then copy that file here.`
-    );
-  }
-  const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf8'));
-  if (Array.isArray(cookies) && cookies.length) await page.setCookie(...cookies);
-}
-
-// Local launch: headless-first, fall back to a visible window for a hand login
-// (only possible with a display). Remote (browserless): inject cookies from file.
-async function openAuthenticatedPage(picked) {
-  if (picked.mode === 'remote') {
-    const { browser } = await openBrowser(puppeteer, {}, { picked });
-    const page = await browser.newPage();
-    await loadCookiesFromFile(page);
-    await page.goto(START_URL, { waitUntil: 'networkidle2' });
-    try {
-      await page.waitForSelector(LOGGED_IN_SELECTOR, { timeout: 20000 });
-    } catch {
-      await browser.close();
-      throw new Error(
-        `Remote browser is not logged in — cookies in ${COOKIES_FILE} are missing or expired. Regenerate with \`chatgpt-image --dump-cookies\` on a machine with a display.`
-      );
-    }
-    return { page, browser };
-  }
-
-  let { browser } = await openBrowser(puppeteer, {
-    userDataDir: USER_DATA_DIR,
-    headless: true,
-    launchArgs: LAUNCH_ARGS,
-  }, { picked });
-  let page = await browser.newPage();
-  await page.goto(START_URL, { waitUntil: 'networkidle2' });
-  try {
-    await page.waitForSelector(LOGGED_IN_SELECTOR, { timeout: 15000 });
-    return { page, browser };
-  } catch {
-    /* not logged in — need a hand login */
-  }
-
-  if (isHeadlessBox()) {
-    await browser.close();
-    throw new Error(
-      'Not logged in and no display for a hand login. Either set BROWSERLESS_API_KEY + provide chatgpt-cookies.json, or run once on a desktop to seed the profile.'
-    );
-  }
-
-  console.log('🔐 Not logged in. Opening a visible window — log in, then the script continues automatically...');
-  await browser.close();
-  ({ browser } = await openBrowser(
-    puppeteer,
-    { userDataDir: USER_DATA_DIR, headless: false, launchArgs: LAUNCH_ARGS },
-    { picked }
-  ));
-  page = await browser.newPage();
-  await page.goto(START_URL, { waitUntil: 'networkidle2' });
-  await page.waitForSelector(LOGGED_IN_SELECTOR, { timeout: LOGIN_TIMEOUT_MS });
-  console.log('✅ Logged in.');
-  return { page, browser };
-}
-
-async function runDumpCookies() {
-  if (isHeadlessBox()) {
-    console.error('❌ --dump-cookies needs a display (it opens a window for you to log in). Run it on your desktop.');
-    process.exit(1);
-  }
-  const { browser, picked } = await openBrowser(puppeteer, {
-    userDataDir: USER_DATA_DIR,
-    headless: false,
-    launchArgs: LAUNCH_ARGS,
-  });
-  console.log(`🌐 ${picked.label}`);
-  try {
-    const page = await browser.newPage();
-    await page.goto(START_URL, { waitUntil: 'networkidle2' });
-    console.log('🔐 Log in if prompted — waiting for the chat box...');
-    await page.waitForSelector(LOGGED_IN_SELECTOR, { timeout: LOGIN_TIMEOUT_MS });
-    const cookies = await readAllCookies(page);
-    fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
-    console.log(`💾 ${cookies.length} cookies -> ${COOKIES_FILE}`);
-    console.log('   Copy this file to the headless host (same path, or set CHATGPT_COOKIES_FILE).');
-  } finally {
-    await browser.close();
-  }
-}
-
 (async () => {
   if (dumpCookies) {
     try {
-      await runDumpCookies();
+      await runDumpCookies({ userDataDir: USER_DATA_DIR, cookiesFile: COOKIES_FILE });
     } catch (error) {
       console.error('❌ Error:', error.message);
       process.exit(1);
@@ -177,7 +64,7 @@ async function runDumpCookies() {
   try {
     const picked = resolveBrowser();
     console.log(`🌐 ${picked.label}`);
-    const auth = await openAuthenticatedPage(picked);
+    const auth = await openAuthenticatedPage(picked, { userDataDir: USER_DATA_DIR, cookiesFile: COOKIES_FILE, cmdName: CMD_NAME });
     browser = auth.browser;
     const page = auth.page;
 
