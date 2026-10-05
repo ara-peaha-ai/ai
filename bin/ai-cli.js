@@ -46,6 +46,7 @@ const AREAS = [
     ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
   ]],
   ['dev', [
+    ['gitchat', 'Open a named Claude Code session for this folder, resuming it if it exists'],
     ['gitpush', 'Run the commit+push an AI agent prepared in /tmp/commit/script'],
     ['repo-split-branches', 'Check out every branch of a repo into its own worktree folder'],
     ['repo-join-branches', 'Fold the worktree folders back, saving uncommitted work as wip commits'],
