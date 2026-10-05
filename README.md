@@ -616,6 +616,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 |---|---|
 | `t <name>` | Sets a fixed title on the current terminal tab |
 | `tc <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it |
+| `tcm <name>` | inside a repo: `git switch main`, `git pull --ff-only`, then `tc <name>`; stops if the tree is dirty or the pull is not a fast-forward |
 | `tg <name>` | `t` + starts Grok |
 | `rgcode <pattern>` | `rg` skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `__pycache__`, `.next` |
 | `killproton` | Force-kills ProtonVPN |

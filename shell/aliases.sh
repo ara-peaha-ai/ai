@@ -14,5 +14,8 @@ t() { PS1="${PS1/\\\[\\e\]0;*\\a\\\]/}"; __tab_title="$*"; PROMPT_COMMAND='print
 # Set a fixed terminal tab title and open (or resume) the claude session with that name: tc <name>
 tc() { t "$*" && gitchat --name "$*"; }
 
+# Same as tc, after switching the current repo to an up-to-date main: tcm <name>
+tcm() { git switch main && git pull --ff-only && tc "$@"; }
+
 # Set a fixed terminal tab title and grok session: tg <name>
 tg() { t "$*" && grok; }
