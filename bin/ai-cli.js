@@ -44,6 +44,7 @@ const AREAS = [
     ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
     ['blur-video', 'Blur a video from a given second to the end'],
     ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
+    ['slideshow', 'Merge images and videos (a folder or a list of files) into one silent mp4'],
   ]],
   ['dev', [
     ['gitchat', 'Open a named Claude Code session for this folder, resuming it if it exists'],
