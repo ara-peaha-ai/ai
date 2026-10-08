@@ -27,6 +27,7 @@
     "upscale": "./bin/media/upscale.js",
     "watermark-image": "./bin/media/watermark-image.js",
     "watermark-video": "./bin/media/watermark-video.js",
+    "slideshow": "./bin/media/slideshow.js",
     "webp-to-jpg": "./bin/media/webp-to-jpg.js",
     "fixvscode": "./bin/dev/fixvscode.sh",
     "gitchat": "./bin/dev/gitchat.sh",
