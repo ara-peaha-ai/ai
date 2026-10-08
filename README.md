@@ -288,7 +288,7 @@ upscale ./animation-frames              # 2x every image -> animation-frames@2x/
 - Output: a file becomes `<name>@<N>x.<ext>` next to the input; a folder fans out to a sibling `<folder>@<N>x/` with the same file names. Originals are never touched.
 
 ### `watermark-image`
-Tiles a rotated (-45°) diagonal text watermark over an image.
+Tiles a text watermark (optionally rotated) over an image.
 
 ```
 watermark-image --text "ondanovia.com" ./photo.jpg
@@ -300,9 +300,11 @@ watermark-image --text "ondanovia.com" ./photo.jpg
 | `--text` | yes | string | watermark text |
 | `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
 | `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--rotation` | no | degrees | text rotation, negative = counter-clockwise (default: `0`) |
+| `--color` | no | SVG color | text color, e.g. `white`, `#4FB3E8` (default: `black`) |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Renders the text as a rotated SVG, tiled at a fixed 256×256px repeat over the full image via `sharp`.
+- Renders the text as an SVG, tiled over the full image (tile is at least 256×256px and grows to fit long or rotated text) via `sharp`.
 - Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
 
 ### `text-overlay`
@@ -377,7 +379,7 @@ blur-video --at 19 ./input.mp4
 - Output: saved next to the input file as `<input-name>-blurred.<ext>`.
 
 ### `watermark-video`
-Tiles the same rotated diagonal text watermark over every frame of a video.
+Tiles the same text watermark over every frame of a video.
 
 ```
 watermark-video --text "ondanovia.com" ./input.mp4
@@ -389,6 +391,8 @@ watermark-video --text "ondanovia.com" ./input.mp4
 | `--text` | yes | string | watermark text |
 | `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
 | `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--rotation` | no | degrees | text rotation, negative = counter-clockwise (default: `0`) |
+| `--color` | no | SVG color | text color, e.g. `white`, `#4FB3E8` (default: `black`) |
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Extracts the first frame (`ffmpeg`) to get the video's real pixel size, builds a full-frame transparent PNG tiled with the watermark (tile scaled to ~1/3 of the frame width/height, via `sharp`), then overlays it onto every frame (`ffmpeg -filter_complex overlay`, audio copied through untouched).
