@@ -403,24 +403,25 @@ slideshow                               # every image/video in the current folde
 slideshow ./photos                      # every image/video in ./photos -> ./photos/slideshow.mp4
 slideshow c.jpg intro.mp4 a.jpg b.png   # exactly these, in this order -> ./slideshow.mp4
 slideshow --fill ./photos               # fill the frame, cropping around the subject
-slideshow --duration 2 --size 1920x1080 --output reel.mp4 ./photos
+slideshow --ratio 9:16 --fill ./photos     # vertical, for Reels/TikTok/Stories
+slideshow --duration 2 --ratio 16:9 --output reel.mp4 ./photos
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
 | `[input]` | no | nothing, **one** folder, **or** one or more image/video files | no input = current folder; a folder = all its images and videos, natural-sorted (`img2` before `img10`); files = that exact order |
 | `--duration` | no | seconds (number) | how long each image stays on screen; videos always play in full (default: `3`) |
-| `--size` | no | `WxH` | output frame size (default: `1080x1920`, vertical for Reels/TikTok/Stories) |
+| `--ratio` | no | `W:H` | aspect ratio of the output, e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`; the short side is always 1080 px (`16:9` → 1920x1080, `4:3` → 1440x1080) (default: `1:1`) |
 | `--fill` | no | — | fill the whole frame instead of letterboxing: images are cropped around the subject (`sharp` attention), videos are center-cropped |
 | `--output` | no | file path | output mp4 (default: `<folder>/slideshow.mp4` for a folder, `./slideshow.mp4` for a file list) |
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Accepted images: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tif`, `.tiff`; convert `.heic`/`.avif` first with `image-to-jpg --keep`. Accepted videos: `.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`.
-- Default framing: each input is fitted inside `--size` and letterboxed with black bars, never cropped or stretched.
-- `--fill`: a `sharp` pre-pass crops each image to exactly `--size` with `position: 'attention'` (the region with the most skin tone, saturation and luminance) and applies the EXIF orientation that ffmpeg 4.4 ignores; videos get a plain center crop in ffmpeg. It is a heuristic, not face/body detection: on single-subject vertical photos it frames well, on a wide photo with a crowd it can pick the crowd and cut the subject. Real detection is the `#pri 3` todo below.
-- Wraps one ffmpeg input per file (`-loop 1 -t <duration> -i <image>`, or `-i <video>`), `scale`+`pad` (or `scale`+`crop` with `--fill`) each to `--size`, joined with the `concat` filter; `libx264`, `crf 20`, 30 fps, `yuv420p`, `+faststart` (plays everywhere, including WhatsApp and Instagram).
+- Default framing: each input is fitted inside the `--ratio` frame and letterboxed with black bars, never cropped or stretched.
+- `--fill`: a `sharp` pre-pass crops each image to exactly the `--ratio` frame with `position: 'attention'` (the region with the most skin tone, saturation and luminance) and applies the EXIF orientation that ffmpeg 4.4 ignores; videos get a plain center crop in ffmpeg. It is a heuristic, not face/body detection: on single-subject vertical photos it frames well, on a wide photo with a crowd it can pick the crowd and cut the subject. Real detection is the `#pri 3` todo below.
+- Wraps one ffmpeg input per file (`-loop 1 -t <duration> -i <image>`, or `-i <video>`), `scale`+`pad` (or `scale`+`crop` with `--fill`) each to the frame, joined with the `concat` filter; `libx264`, `crf 20`, 30 fps, `yuv420p`, `+faststart` (plays everywhere, including WhatsApp and Instagram).
 - The output is always silent: the audio of input videos is dropped. Hard cuts, no transitions. An existing output file is never overwritten: the command exits 1.
-- `--selftest` checks the input planning, the generated ffmpeg arguments and the `--fill` crop size without rendering a video.
+- `--selftest` checks the input planning, the ratio → frame size math, the generated ffmpeg arguments and the `--fill` crop size without rendering a video.
 
 ## dev
 

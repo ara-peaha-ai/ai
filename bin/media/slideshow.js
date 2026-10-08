@@ -9,7 +9,7 @@ const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.t
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
 
 const args = process.argv.slice(2);
-const VALUE_FLAGS = new Set(['--duration', '--size', '--output']);
+const VALUE_FLAGS = new Set(['--duration', '--ratio', '--output']);
 
 const getFlag = (name, fallback) => {
   const i = args.indexOf(name);
@@ -21,7 +21,17 @@ const positionals = args.filter(
 );
 const duration = Number(getFlag('--duration', '3'));
 const fill = args.includes('--fill');
-const size = getFlag('--size', '1080x1920');
+const ratio = getFlag('--ratio', '1:1');
+
+// "W:H" -> [width, height] with the short side at 1080 px and both even
+// (libx264 + yuv420p need even dimensions); null when not a valid ratio.
+const frameSize = (r) => {
+  const m = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(r);
+  if (!m || !(Number(m[1]) > 0 && Number(m[2]) > 0)) return null;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  const long = (x) => Math.round((1080 * x) / Math.min(a, b) / 2) * 2;
+  return [long(a), long(b)];
+};
 
 const ext = (f) => path.extname(f).toLowerCase();
 const isVideo = (f) => VIDEO_EXT.has(ext(f));
@@ -88,6 +98,13 @@ const selftest = async () => {
     defaultOutput: path.join(d, 'slideshow.mp4'),
   });
   assert.deepStrictEqual(planInputs(['b.jpg', 'a.mp4']).files, ['b.jpg', 'a.mp4']);
+  assert.deepStrictEqual(frameSize('1:1'), [1080, 1080]);
+  assert.deepStrictEqual(frameSize('16:9'), [1920, 1080]);
+  assert.deepStrictEqual(frameSize('9:16'), [1080, 1920]);
+  assert.deepStrictEqual(frameSize('4:3'), [1440, 1080]);
+  assert.deepStrictEqual(frameSize('3:4'), [1080, 1440]);
+  assert.strictEqual(frameSize('1080x1920'), null);
+  assert.strictEqual(frameSize('0:1'), null);
   const graphOf = (built) => built[built.indexOf('-filter_complex') + 1];
   const built = buildArgs(['a.jpg', 'c.mp4'], 2, 1080, 1920, 'out.mp4');
   assert.deepStrictEqual(built.slice(4, 12), ['-loop', '1', '-t', '2', '-i', 'a.jpg', '-i', 'c.mp4']);
@@ -100,22 +117,23 @@ const selftest = async () => {
   const { width, height } = await sharp(cropped).metadata();
   assert.deepStrictEqual([width, height], [90, 160]);
   fs.rmSync(d, { recursive: true });
-  console.log('selftest ok (folder natural sort + filter, file order kept, ffmpeg args, --fill crop)');
+  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg args, --fill crop)');
   return 0;
 };
 
 const main = async () => {
-  const sizeMatch = /^(\d+)x(\d+)$/.exec(size);
-  if (args.includes('--help') || args.includes('-h') || !(duration > 0) || !sizeMatch) {
+  const frame = frameSize(ratio);
+  if (args.includes('--help') || args.includes('-h') || !(duration > 0) || !frame) {
     console.error(
       [
-        'Usage: slideshow [--duration S] [--size WxH] [--fill] [--output out.mp4] [folder | file1 file2 ...]',
+        'Usage: slideshow [--duration S] [--ratio W:H] [--fill] [--output out.mp4] [folder | file1 file2 ...]',
         '',
         '  (no input)        every image/video in the current folder, natural-sorted',
         '  <folder>          every image/video in that folder, natural-sorted',
         '  <file1 file2 ...> exactly these images/videos, in this order',
         '  --duration <S>    seconds per image; videos always play in full  [3]',
-        '  --size <WxH>      output frame; everything is fitted + letterboxed [1080x1920]',
+        '  --ratio <W:H>     aspect ratio, short side 1080 px: 1:1, 16:9, 9:16, 4:3, 3:4, ...  [1:1]',
+        '                    everything is fitted + letterboxed inside it',
         '  --fill            fill the frame instead: images cropped around the subject',
         '                    (sharp attention), videos center-cropped',
         '  --output <path>   output mp4  [<folder>/slideshow.mp4, or ./slideshow.mp4 for files]',
@@ -146,7 +164,7 @@ const main = async () => {
     return 1;
   }
 
-  const [, w, h] = sizeMatch.map(Number);
+  const [w, h] = frame;
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slideshow-'));
   try {
     const inputs = fill ? await fillImages(files, w, h, tmpDir) : files;
