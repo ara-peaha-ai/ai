@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// formats ffmpeg decodes as still images out of the box; .heic needs image-to-jpg first
+// formats ffmpeg decodes as still images out of the box; .heic/.avif need image-to-jpg first
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.m4v', '.webm', '.mkv']);
 
@@ -46,7 +46,7 @@ const planInputs = (inputs) => {
     const dir = inputs[0];
     const files = fs
       .readdirSync(dir)
-      .filter(isMedia)
+      .filter((name) => isMedia(name) && fs.statSync(path.join(dir, name)).isFile())
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
       .map((name) => path.join(dir, name));
     return { files, defaultOutput: path.join(dir, 'slideshow.mp4') };
@@ -60,12 +60,13 @@ const planInputs = (inputs) => {
 // the audio of input videos is dropped.
 const buildArgs = (files, secs, w, h, output, fill = false) => {
   const inputs = files.flatMap((f) => (isVideo(f) ? ['-i', f] : ['-loop', '1', '-t', String(secs), '-i', f]));
-  // --fill: cover + center crop (images arrive pre-cropped by fillImages, so
+  // --fill: cover + center crop (images arrive pre-cropped by prepareImages, so
   // this only crops videos); default: fit inside + black bars
   const frame = fill
     ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`
     : `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
-  const chains = files.map((_, i) => `[${i}:v]${frame},setsar=1,fps=30,format=yuv420p[v${i}]`);
+  // setpts: inputs with a non-zero start time (common on phone videos) start at 0
+  const chains = files.map((_, i) => `[${i}:v]${frame},setsar=1,fps=30,format=yuv420p,setpts=PTS-STARTPTS[v${i}]`);
   const joined = `${files.map((_, i) => `[v${i}]`).join('')}concat=n=${files.length}:v=1:a=0[out]`;
   return [
     '-hide_banner', '-loglevel', 'error', '-stats', ...inputs,
@@ -74,18 +75,32 @@ const buildArgs = (files, secs, w, h, output, fill = false) => {
   ];
 };
 
-// --fill pre-pass: every image cropped to exactly WxH around the region sharp's
-// "attention" strategy scores highest (skin tone, saturation, luminance), after
-// applying the EXIF orientation that ffmpeg 4.4 ignores. Videos are untouched.
-// ponytail: heuristic, not detection — real face/body boxes are the #pri 3 todo in README.
-const fillImages = async (files, w, h, tmpDir) => {
+// Ctrl+C / kill: ffmpeg gets the signal too and exits on its own; this flag
+// stops the image pre-pass, so main's cleanup (temp dir, partial output) runs.
+let interrupted = false;
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { interrupted = true; });
+
+// Image pre-pass with sharp, one image at a time (bounded memory on big
+// folders), written as PNG into tmpDir:
+// - --fill: crop to exactly WxH with sharp's "attention" strategy (luminance
+//   frequency, colour saturation, presence of skin tones);
+// - always: apply the EXIF orientation, which ffmpeg 4.4 ignores. Images
+//   without an orientation tag go to ffmpeg untouched when not filling.
+// ponytail: attention is a heuristic, not detection — real face/body boxes are the #pri 3 todo in README.
+const prepareImages = async (files, w, h, tmpDir, fill) => {
   const sharp = require('sharp');
-  return Promise.all(files.map(async (f, i) => {
-    if (isVideo(f)) return f;
-    const out = path.join(tmpDir, `${i}.png`);
-    await sharp(f).rotate().resize(w, h, { fit: 'cover', position: sharp.strategy.attention }).toFile(out);
-    return out;
-  }));
+  const out = [];
+  for (const [i, f] of files.entries()) {
+    if (interrupted) throw new Error('interrupted');
+    if (isVideo(f)) { out.push(f); continue; }
+    const { orientation } = await sharp(f).metadata();
+    if (!fill && !(orientation > 1)) { out.push(f); continue; }
+    const target = path.join(tmpDir, `${i}.png`);
+    const img = sharp(f).rotate();
+    await (fill ? img.resize(w, h, { fit: 'cover', position: sharp.strategy.attention }) : img).toFile(target);
+    out.push(target);
+  }
+  return out;
 };
 
 const selftest = async () => {
@@ -113,17 +128,26 @@ const selftest = async () => {
   assert.ok(graphOf(buildArgs(['a.jpg'], 2, 1080, 1920, 'out.mp4', true)).includes('force_original_aspect_ratio=increase,crop=1080:1920'));
   const wide = path.join(d, 'wide.png');
   await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).toFile(wide);
-  const [cropped] = await fillImages([wide], 90, 160, d);
+  const [cropped] = await prepareImages([wide], 90, 160, d, true);
   const { width, height } = await sharp(cropped).metadata();
   assert.deepStrictEqual([width, height], [90, 160]);
+  const rotated = path.join(d, 'rotated.jpg');
+  await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).jpeg().withMetadata({ orientation: 6 }).toFile(rotated);
+  const [upright, plain] = await prepareImages([rotated, wide], 1080, 1080, d, false);
+  const meta = await sharp(upright).metadata();
+  assert.deepStrictEqual([meta.width, meta.height], [100, 400]);
+  assert.strictEqual(plain, wide);
   fs.rmSync(d, { recursive: true });
-  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg args, --fill crop)');
+  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg args, --fill crop, EXIF orientation)');
   return 0;
 };
 
 const main = async () => {
   const frame = frameSize(ratio);
-  if (args.includes('--help') || args.includes('-h') || !(duration > 0) || !frame) {
+  const help = args.includes('--help') || args.includes('-h');
+  if (!help && !(duration > 0)) console.error(`❌ --duration must be a positive number of seconds (got "${getFlag('--duration', '')}")`);
+  if (!help && !frame) console.error(`❌ --ratio must be W:H, e.g. 1:1, 16:9, 9:16 (got "${ratio}")`);
+  if (help || !(duration > 0) || !frame) {
     console.error(
       [
         'Usage: slideshow [--duration S] [--ratio W:H] [--fill] [--output out.mp4] [folder | file1 file2 ...]',
@@ -133,52 +157,51 @@ const main = async () => {
         '  <file1 file2 ...> exactly these images/videos, in this order',
         '  --duration <S>    seconds per image; videos always play in full  [3]',
         '  --ratio <W:H>     aspect ratio, short side 1080 px: 1:1, 16:9, 9:16, 4:3, 3:4, ...  [1:1]',
-        '                    everything is fitted + letterboxed inside it',
-        '  --fill            fill the frame instead: images cropped around the subject',
-        '                    (sharp attention), videos center-cropped',
+        '                    default framing: fitted inside it + black bars',
+        '  --fill            fill the frame instead: images cover-cropped with sharp',
+        '                    attention (a heuristic, can miss the subject), videos center-cropped',
         '  --output <path>   output mp4  [<folder>/slideshow.mp4, or ./slideshow.mp4 for files]',
         '  --help / -h       print usage and exit',
         '',
-        `Images: ${[...IMAGE_EXT].join(', ')}. Convert .heic first with image-to-jpg.`,
+        `Images: ${[...IMAGE_EXT].join(', ')}. Convert .heic/.avif first with image-to-jpg --keep.`,
         `Videos: ${[...VIDEO_EXT].join(', ')}, played in full. The output is always silent.`,
         'An existing output file is never overwritten.',
       ].join('\n')
     );
-    return args.includes('--help') || args.includes('-h') ? 0 : 1;
-  }
-
-  const { files, defaultOutput } = planInputs(positionals);
-  const output = getFlag('--output', defaultOutput);
-
-  const bad = files.filter((f) => !isMedia(f) || !fs.existsSync(f));
-  if (bad.length) {
-    console.error(`❌ missing or unsupported file(s): ${bad.join(', ')}`);
-    return 1;
-  }
-  if (files.length === 0) {
-    console.error(`❌ no images (${[...IMAGE_EXT].join(', ')}) or videos (${[...VIDEO_EXT].join(', ')}) found`);
-    return 1;
-  }
-  if (fs.existsSync(output)) {
-    console.error(`❌ ${output} already exists — remove it or pass --output`);
-    return 1;
+    return help ? 0 : 1;
   }
 
   const [w, h] = frame;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slideshow-'));
+  let tmpDir = null;
+  let output = null; // set only once we know the file did not exist before this run
   try {
-    const inputs = fill ? await fillImages(files, w, h, tmpDir) : files;
+    const { files, defaultOutput } = planInputs(positionals);
+    const target = getFlag('--output', defaultOutput);
+
+    const bad = files.filter((f) => !isMedia(f) || !fs.existsSync(f));
+    if (bad.length) throw new Error(`missing or unsupported file(s): ${bad.join(', ')}`);
+    if (files.length === 0) {
+      throw new Error(`no images (${[...IMAGE_EXT].join(', ')}) or videos (${[...VIDEO_EXT].join(', ')}) found`);
+    }
+    if (fs.existsSync(target)) throw new Error(`${target} already exists — remove it or pass --output`);
+    output = target;
+
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slideshow-'));
+    const inputs = await prepareImages(files, w, h, tmpDir, fill);
     const r = spawnSync('ffmpeg', buildArgs(inputs, duration, w, h, output, fill), { stdio: 'inherit' });
     if (r.error) throw new Error('ffmpeg not found. Install with: sudo apt install ffmpeg');
-    if (r.status !== 0) return r.status ?? 1;
+    if (r.status !== 0 || interrupted) throw new Error(interrupted ? 'interrupted' : `ffmpeg failed (exit ${r.status ?? r.signal})`);
     const videos = files.filter(isVideo).length;
     console.log(`✅ ${output} (${files.length - videos} images × ${duration}s + ${videos} videos)`);
+    output = null;
     return 0;
   } catch (e) {
     console.error(`❌ ${e.message}`);
     return 1;
   } finally {
-    fs.rmSync(tmpDir, { recursive: true });
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true });
+    // a failed or interrupted run never leaves a half-written mp4 behind
+    if (output) fs.rmSync(output, { force: true });
   }
 };
 
