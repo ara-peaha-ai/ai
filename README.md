@@ -36,12 +36,12 @@ ai l                                  # list the local commands
 | `<target>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
 | `<prompt...>` | yes, remote targets | string | the rest of the arguments, joined with spaces |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
-| `--help` / `-h` | no | — | print usage and exit |
+| `--help` / `-h` | no | — | print usage and exit; also `ai <target> --help`, and `ai l --help` lists the local commands |
 
 - **Abbreviations**: every target and local command accepts any unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates.
 - `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
-- `claude` and `grok` run the installed CLIs with `-p`, using their own login. Output and exit code are theirs.
-- `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` (shell env or `.env`); model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy.
+- `claude` and `grok` run the installed CLIs with `-p`, using their own login. Output, exit code and signal are theirs; piped stdin reaches them (`git diff | ai c "review this"`).
+- `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
 
 ### `chatgpt-image`
 Uploads an image to ChatGPT with a prompt and downloads the resulting generated image.

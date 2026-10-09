@@ -5,6 +5,9 @@
   "author": "PE'AHA Verein",
   "license": "MIT",
   "version": "0.1.0",
+  "engines": {
+    "node": ">=22.12"
+  },
   "main": "index.js",
   "bin": {
     "ai-cli": "./bin/ai-cli.js",

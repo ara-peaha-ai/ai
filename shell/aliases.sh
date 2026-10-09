@@ -15,7 +15,7 @@ t() { PS1="${PS1/\\\[\\e\]0;*\\a\\\]/}"; __tab_title="$*"; PROMPT_COMMAND='print
 aic() { t "$*" && gitchat --name "$*"; }
 
 # Same as aic, after switching the current repo to an up-to-date main: aicm <name>
-aicm() { git switch main && git pull --ff-only && aic "$@"; }
+aicm() { [ -z "$(git status --porcelain)" ] || { echo "aicm: uncommitted changes, commit or stash first" >&2; return 1; }; git switch main && git pull --ff-only && aic "$@"; }
 
 # Set a fixed terminal tab title and grok session: aig <name>
 aig() { t "$*" && grok; }
