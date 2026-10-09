@@ -287,25 +287,30 @@ upscale ./animation-frames              # 2x every image -> animation-frames@2x/
 - Recognised image extensions: `.jpg .jpeg .png .webp .bmp .tif .tiff`. A folder input skips everything else.
 - Output: a file becomes `<name>@<N>x.<ext>` next to the input; a folder fans out to a sibling `<folder>@<N>x/` with the same file names. Originals are never touched.
 
-### `watermark-image`
-Tiles a text watermark (optionally rotated) over an image.
+### `watermark`
+Tiles a text watermark over images and videos, detected from the file extension. Without an input it processes every image and video in the current folder.
 
 ```
-watermark-image --text "ondanovia.com" ./photo.jpg
+watermark --text "ondanovia.com"                        # every image/video in the current folder
+watermark --text "ondanovia.com" ./photo.jpg ./clip.mp4
+watermark --text "ondanovia.com" --rotation -45 --color '#4FB3E8' ./folder --recursive
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<input>` | yes | image file path | positional argument, first non-flag arg |
+| `<input>` | no | files and/or folders | positional; none = current folder; a folder = its images/videos, not its subfolders |
 | `--text` | yes | string | watermark text |
 | `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
-| `--font-size` | no | number | watermark font size in px (default: `36`) |
+| `--font-size` | no | 1–1000 | font size in px on images; on videos scaled with the frame (default: `36`) |
 | `--rotation` | no | degrees | text rotation, negative = counter-clockwise (default: `0`) |
-| `--color` | no | SVG color | text color, e.g. `white`, `#4FB3E8` (default: `black`) |
+| `--color` | no | color | name, `'#hex'` (quote it, bash treats `#` as a comment) or `rgb()` (default: `black`) |
+| `--recursive` | no | — | folders: include subfolders too |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Renders the text as an SVG, tiled over the full image (tile is at least 256×256px and grows to fit long or rotated text) via `sharp`.
-- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
+- Each copy of the text sits in a tile of at least 256×256px that grows with the text and the rotation. Text width is estimated (0.6em per char), not measured, so very wide glyphs can still clip. Tiles over 4096px are refused.
+- Images: the tile is composited at native pixel size via `sharp`.
+- Videos: the first frame (`ffmpeg`) gives the real pixel size, the tile is scaled so 256px = 1/3 of the frame's short side, and the resulting full-frame PNG is overlaid on every frame (`ffmpeg -filter_complex overlay`, audio copied untouched). Re-encoding is CPU-bound and can be slow on long or high-resolution videos.
+- Output: `<input-name>-watermark.<ext>` next to each input, overwritten on re-run. Folder scans skip files already named `*-watermark.*`, so a re-run never stacks watermarks.
 
 ### `text-overlay`
 Draws a single line of text over an image or a video (input type auto-detected from the file extension).
@@ -378,27 +383,6 @@ blur-video --at 19 ./input.mp4
 - The 4s ramp is currently hardcoded (matches the original 19→23 example); re-encodes video (`libx264`, `crf 18`), drops audio.
 - Output: saved next to the input file as `<input-name>-blurred.<ext>`.
 
-### `watermark-video`
-Tiles the same text watermark over every frame of a video.
-
-```
-watermark-video --text "ondanovia.com" ./input.mp4
-```
-
-| Flag | Required | Value | Description |
-|---|---|---|---|
-| `<input>` | yes | video file path | positional argument, first non-flag arg |
-| `--text` | yes | string | watermark text |
-| `--opacity` | no | 0–1 | watermark opacity (default: `0.25`) |
-| `--font-size` | no | number | watermark font size in px (default: `36`) |
-| `--rotation` | no | degrees | text rotation, negative = counter-clockwise (default: `0`) |
-| `--color` | no | SVG color | text color, e.g. `white`, `#4FB3E8` (default: `black`) |
-| `--help` / `-h` | no | — | print usage and exit |
-
-- Extracts the first frame (`ffmpeg`) to get the video's real pixel size, builds a full-frame transparent PNG tiled with the watermark (tile scaled to ~1/3 of the frame width/height, via `sharp`), then overlays it onto every frame (`ffmpeg -filter_complex overlay`, audio copied through untouched).
-- Re-encodes video only (`libx264` default from ffmpeg's overlay output); this is CPU-bound and can be slow/heavy on long or high-resolution videos on a laptop — GPU-accelerated encoding is a possible future addition, not implemented yet.
-- Output: saved next to the input file as `<input-name>-watermarked.<ext>`.
-
 ### `slideshow`
 Turns the images and videos of a folder, or an explicit list of files, into one silent mp4: images held for `--duration` seconds, videos merged in full.
 
@@ -413,10 +397,11 @@ slideshow --duration 2 --ratio 16:9 --output reel.mp4 ./photos
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `[input]` | no | nothing, **one** folder, **or** one or more image/video files | no input = current folder; a folder = all its images and videos, natural-sorted (`img2` before `img10`); files = that exact order |
+| `[input]` | no | nothing, **one** folder, **or** one or more image/video files | no input = current folder; a folder = all its images and videos (not its subfolders, unless `--recursive`), natural-sorted (`img2` before `img10`); files = that exact order |
 | `--duration` | no | seconds (number) | how long each image stays on screen; videos always play in full (default: `3`) |
 | `--ratio` | no | `W:H` | aspect ratio of the output, e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`; the short side is always 1080 px (`16:9` → 1920x1080, `4:3` → 1440x1080) (default: `1:1`) |
 | `--fill` | no | — | fill the whole frame instead of letterboxing: images are cover-cropped with `sharp` attention (a heuristic, it can miss the subject, see below), videos are center-cropped |
+| `--recursive` | no | — | folder input: include subfolders too (default: top level only) |
 | `--output` | no | file path | output mp4 (default: `<folder>/slideshow.mp4` for a folder, `./slideshow.mp4` for a file list) |
 | `--help` / `-h` | no | — | print usage and exit |
 
@@ -657,7 +642,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
+All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
 
 ## Scraper status
 
