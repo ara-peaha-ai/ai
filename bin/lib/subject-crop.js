@@ -15,15 +15,20 @@ const MODELS = {
     sha256: '427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7',
     size: 416,
   },
+  // dynamic H/W re-export of the 2023mar weights, pinned to the commit that added it
   face: {
-    file: 'face_detection_yunet_2023mar.onnx',
-    url: 'https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx',
-    sha256: '8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4',
-    size: 640,
+    file: 'face_detection_yunet_2026may.onnx',
+    url: 'https://media.githubusercontent.com/media/opencv/opencv_zoo/26cc381e4d2594bb9f47a26eb8fd96c94a13660d/models/face_detection_yunet/face_detection_yunet_2026may.onnx',
+    sha256: 'ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0',
   },
 };
+// YuNet finds faces of roughly 10-300 px in its input, so the photo is scanned
+// at a large size first (small faces in group shots), then at a small size if
+// nothing was found (a close-up face bigger than ~300 px at the large size).
+const FACE_LONG_SIDES = [960, 320];
+const MAX_MODEL_BYTES = 64 * 1024 * 1024;
 const PERSON_MIN_SCORE = 0.45;
-const FACE_MIN_SCORE = 0.6;
+const FACE_MIN_SCORE = 0.8; // 0.6-0.7 let blurred background faces through
 const STRIDES = [8, 16, 32];
 
 const cacheDir = () =>
@@ -39,8 +44,11 @@ const ensureModel = async ({ file, url, sha256: expected }) => {
   console.error(`⬇️  downloading ${file} (once) ...`);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`download failed (${res.status}): ${url}`);
+  if (Number(res.headers.get('content-length')) > MAX_MODEL_BYTES) throw new Error(`refusing oversized download: ${url}`);
+  const body = Buffer.from(await res.arrayBuffer());
+  if (body.length > MAX_MODEL_BYTES) throw new Error(`refusing oversized download: ${url}`);
   const tmp = `${target}.part`;
-  fs.writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+  fs.writeFileSync(tmp, body);
   if (sha256(tmp) !== expected) {
     fs.rmSync(tmp);
     throw new Error(`checksum mismatch for ${file}, refusing to use it`);
@@ -49,28 +57,28 @@ const ensureModel = async ({ file, url, sha256: expected }) => {
   return target;
 };
 
-// Raw RGB image -> letterboxed BGR planar float32 tensor of side `size`
-// (image at top-left, rest padded), plus the scale back to image pixels.
-const toTensor = async (sharp, ort, img, size, pad) => {
-  const scale = Math.min(size / img.width, size / img.height);
+// Raw RGB image scaled by `scale`, placed at the top-left of a tw x th
+// canvas filled with `pad` -> BGR planar float32 tensor (0-255, no
+// normalization: both models were exported that way).
+const toTensor = async (sharp, ort, img, scale, tw, th, pad) => {
   const rw = Math.max(1, Math.round(img.width * scale));
   const rh = Math.max(1, Math.round(img.height * scale));
   const { data } = await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 3 } })
     .resize(rw, rh, { fit: 'fill' })
     .raw()
     .toBuffer({ resolveWithObject: true });
-  const plane = size * size;
+  const plane = tw * th;
   const t = new Float32Array(3 * plane).fill(pad);
   for (let y = 0; y < rh; y++) {
     for (let x = 0; x < rw; x++) {
       const s = (y * rw + x) * 3;
-      const d = y * size + x;
+      const d = y * tw + x;
       t[d] = data[s + 2]; // B
       t[plane + d] = data[s + 1]; // G
       t[2 * plane + d] = data[s]; // R
     }
   }
-  return { tensor: new ort.Tensor('float32', t, [1, 3, size, size]), scale };
+  return new ort.Tensor('float32', t, [1, 3, th, tw]);
 };
 
 const iou = (a, b) => {
@@ -113,12 +121,13 @@ const decodeYolox = (out, size, scale) => {
   return nms(boxes);
 };
 
-// YuNet 2023mar outputs per stride: cls, obj, bbox (dx, dy, log w, log h);
+// YuNet outputs per stride: cls, obj, bbox (dx, dy, log w, log h);
 // score = sqrt(cls * obj), same decoding as OpenCV's FaceDetectorYN.
-const decodeYunet = (outs, size, scale) => {
+// `width` is the (32-aligned) input width the grid was computed on.
+const decodeYunet = (outs, width, scale) => {
   const boxes = [];
   for (const s of STRIDES) {
-    const cols = size / s;
+    const cols = width / s;
     const cls = outs[`cls_${s}`].data;
     const obj = outs[`obj_${s}`].data;
     const bbox = outs[`bbox_${s}`].data;
@@ -160,10 +169,19 @@ const releaseModels = async () => {
 // img = { data: raw RGB Buffer, width, height } -> { persons, faces } in image pixels
 const detect = async (sharp, img) => {
   const { ort, person, face } = await loadSessions();
-  const p = await toTensor(sharp, ort, img, MODELS.person.size, 114);
-  const persons = decodeYolox((await person.run({ images: p.tensor })).output.data, MODELS.person.size, p.scale);
-  const f = await toTensor(sharp, ort, img, MODELS.face.size, 0);
-  const faces = decodeYunet(await face.run({ input: f.tensor }), MODELS.face.size, f.scale);
+  const size = MODELS.person.size;
+  const pScale = Math.min(size / img.width, size / img.height);
+  const pTensor = await toTensor(sharp, ort, img, pScale, size, size, 114);
+  const persons = decodeYolox((await person.run({ images: pTensor })).output.data, size, pScale);
+  let faces = [];
+  for (const longSide of FACE_LONG_SIDES) {
+    // same as OpenCV: image at its own aspect, padded bottom/right to a multiple of 32
+    const scale = Math.min(1, longSide / Math.max(img.width, img.height));
+    const tw = Math.ceil(Math.round(img.width * scale) / 32) * 32;
+    const th = Math.ceil(Math.round(img.height * scale) / 32) * 32;
+    faces = decodeYunet(await face.run({ input: await toTensor(sharp, ort, img, scale, tw, th, 0) }), tw, scale);
+    if (faces.length) break;
+  }
   return { persons, faces };
 };
 
@@ -191,14 +209,21 @@ const mainOnes = (boxes, ratio) => {
 // was detected (caller falls back to the attention heuristic).
 // The window always has the largest size of that aspect that fits the image,
 // so only its start along one axis is chosen:
+// - faces count when their center is inside one of the main people (any size:
+//   a child's face next to an adult stays); with no people detected, faces
+//   at least 25% of the biggest one's area;
 // - faces that do not fit together: keep the biggest face and its person;
 // - the subject (main people + faces) fits: centered on it;
 // - it does not fit: horizontally centered on it, vertically the faces sit
 //   near the top with the body below;
-// - the faces are always kept inside (a face bigger than the window is centered).
+// - the faces are kept inside (a face bigger than the window cannot be: it is centered).
 const subjectCrop = (W, H, ow, oh, { persons, faces }) => {
   let people = mainOnes(persons, 0.3);
-  let heads = mainOnes(faces, 0.25);
+  const centerIn = (f, p) => {
+    const [cx, cy] = [(f.x1 + f.x2) / 2, (f.y1 + f.y2) / 2];
+    return p.x1 <= cx && cx <= p.x2 && p.y1 <= cy && cy <= p.y2;
+  };
+  let heads = people.length ? faces.filter((f) => people.some((p) => centerIn(f, p))) : mainOnes(faces, 0.25);
   if (people.length === 0 && heads.length === 0) return null;
   const horizontal = W / H > ow / oh;
   const cw = horizontal ? Math.round((H * ow) / oh) : W;
@@ -209,9 +234,8 @@ const subjectCrop = (W, H, ow, oh, { persons, faces }) => {
 
   if (heads.length > 1 && spanOf(union(heads)) > len) {
     const big = heads.reduce((a, b) => (area(b) > area(a) ? b : a));
-    const [cx, cy] = [(big.x1 + big.x2) / 2, (big.y1 + big.y2) / 2];
     heads = [big];
-    people = people.filter((p) => p.x1 <= cx && cx <= p.x2 && p.y1 <= cy && cy <= p.y2);
+    people = people.filter((p) => centerIn(big, p));
   }
   const subject = union([...people, ...heads]);
   const face = union(heads);
@@ -227,4 +251,4 @@ const subjectCrop = (W, H, ow, oh, { persons, faces }) => {
     : { left: 0, top: start, width: cw, height: ch };
 };
 
-module.exports = { detect, subjectCrop, ensureModel, releaseModels, MODELS };
+module.exports = { detect, subjectCrop, decodeYolox, decodeYunet, ensureModel, releaseModels, MODELS };
