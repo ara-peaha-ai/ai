@@ -463,6 +463,19 @@ gitpush
 - No flags: it just executes `/tmp/commit/script`, so the push runs with your own git/SSH credentials and the agent never pushes on its own.
 - The prepared script disarms itself after a successful run, so running `gitpush` twice is harmless (`gitpush: nothing pending`).
 - `/tmp/commit/` is one slot for the whole machine: two agents preparing pushes at the same time overwrite each other.
+- It never merges: a script containing `pr merge` is refused. Merges go through `gitmerge`.
+
+### `gitmerge`
+
+Runs the PR merge an AI agent prepared for you, kept apart from `gitpush` so a push can never merge. The agent writes what it merges to `/tmp/merge/message` (printed before running) and the steps to `/tmp/merge/script`, only after you asked for the merge.
+
+```
+gitmerge
+```
+
+- No flags: it prints `/tmp/merge/message`, then executes `/tmp/merge/script` with your own `gh` credentials.
+- The prepared script is expected to check the PR's `merge-ready` status and head commit before merging, and to disarm itself after a successful run (`gitmerge: nothing pending`).
+- Same safety checks as `gitpush`: only a regular, executable file owned by you.
 
 ### `gitchat`
 
@@ -705,7 +718,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # gitchat, gitpush, gitmerge, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md

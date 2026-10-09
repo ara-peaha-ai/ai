@@ -36,6 +36,7 @@
     "fixvscode": "./bin/dev/fixvscode.sh",
     "gitchat": "./bin/dev/gitchat.sh",
     "gitpush": "./bin/dev/gitpush.sh",
+    "gitmerge": "./bin/dev/gitmerge.sh",
     "repo-join-branches": "./bin/dev/repo-join-branches.sh",
     "repo-split-branches": "./bin/dev/repo-split-branches.sh",
     "search-string": "./bin/dev/search-string.js",

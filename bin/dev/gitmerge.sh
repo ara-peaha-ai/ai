@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Run the PR merge prepared by an AI agent in /tmp/merge/script (what it merges in /tmp/merge/message).
+# Separate from gitpush on purpose: a push never merges. The script disarms itself after a successful run.
+case "${1:-}" in -h|--help) sed -n '2,3p' "$0" | sed 's/^# //'; exit 0 ;; esac
+s=/tmp/merge/script
+[ -e "$s" ] || { echo "gitmerge: nothing prepared ($s missing)" >&2; exit 1; }
+# /tmp is shared: only run a regular file owned by this user
+[ ! -L "$s" ] && [ -O "$s" ] && [ -O /tmp/merge ] || { echo "gitmerge: refusing $s (symlink or not owned by $USER)" >&2; exit 1; }
+[ -x "$s" ] || { echo "gitmerge: $s is not executable" >&2; exit 1; }
+[ -f /tmp/merge/message ] && cat /tmp/merge/message
+exec "$s" "$@"
