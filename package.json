@@ -8,6 +8,7 @@
   "main": "index.js",
   "bin": {
     "ai-cli": "./bin/ai-cli.js",
+    "ai": "./bin/ai/ai.js",
     "chatgpt-image": "./bin/ai/chatgpt-image.js",
     "create-virtual-ambassador": "./bin/ai/create-virtual-ambassador.js",
     "enhance-face": "./bin/ai/enhance-face.sh",
@@ -42,6 +43,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.55",
+    "ai": "7.0.114",
     "puppeteer-core": "^25.5.0",
     "sharp": "^0.35.3"
   }
