@@ -20,6 +20,7 @@ if (process.argv[2] === 'doctor') {
 
 const AREAS = [
   ['ai', [
+    ['ai', 'One entry point: ai claude|grok|deepseek <prompt>, ai local <command> (any unique prefix)'],
     ['chatgpt-image', 'Upload an image to ChatGPT with a prompt, download the result'],
     ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
     ['enhance-face', 'Restore/upscale faces in a portrait with GFPGAN (CPU, needs --with-face setup)'],

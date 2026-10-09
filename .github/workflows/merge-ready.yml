@@ -1,0 +1,48 @@
+# Re-evaluates merge readiness on every review, comment and push (see .github/scripts/merge-ready.mjs).
+# Same file runs on Gitea Actions (it reads .github/workflows when there is no .gitea/workflows).
+name: merge-ready
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request_review_comment:
+  issue_comment:
+    types: [created, edited]
+  # manual re-run after resolving threads or when another check finishes (no Actions event for either)
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+
+permissions:
+  contents: read
+  # write: commenting on a PR through the issues API needs it, issues: write alone gets 403
+  pull-requests: write
+  issues: write
+  statuses: write
+  checks: read
+
+concurrency:
+  group: merge-ready-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  merge-ready-eval:
+    # issue_comment fires on issues too; skip our own sticky comment edits (Gitea re-triggers on bot edits)
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request && !startsWith(github.event.comment.body, '<!-- merge-ready -->'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - run: node .github/scripts/merge-ready.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr }}
+          # comma-separated reviewer/gate names that must pass, e.g. "laya" once the Laya gate posts verdicts
+          REQUIRED_REVIEWERS: ${{ vars.MERGE_READY_REQUIRED }}
