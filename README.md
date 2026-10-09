@@ -19,6 +19,30 @@ ai-cli doctor    # which browser chatgpt-image would use here (local family / br
 
 AI-driven image work: ChatGPT automation, face restoration, face redaction.
 
+### `ai`
+One entry point for the toolbox: a remote model answers a prompt, or `local` runs one of the CPU tools of this repo. v0 of the AI router: the target is picked by hand; routing decisions move to Laya later.
+
+```
+ai claude "summarize this repo"       # Claude Code, headless (claude -p)
+ai grok "summarize this repo"         # Grok, headless (grok -p)
+ai deepseek "explain MoE in 3 lines"  # DeepSeek via NVIDIA's free API
+ai local upscale photo.jpg            # any command of this toolbox
+ai l u photo.jpg                      # same, abbreviated
+ai l                                  # list the local commands
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<target>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
+| `<prompt...>` | yes, remote targets | string | the rest of the arguments, joined with spaces |
+| `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
+| `--help` / `-h` | no | — | print usage and exit; also `ai <target> --help`, and `ai l --help` lists the local commands |
+
+- **Abbreviations**: every target and local command accepts any unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates.
+- `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
+- `claude` and `grok` run the installed CLIs with `-p`, using their own login. Output, exit code and signal are theirs; piped stdin reaches them (`git diff | ai c "review this"`).
+- `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
+
 ### `chatgpt-image`
 Uploads an image to ChatGPT with a prompt and downloads the resulting generated image.
 
@@ -644,9 +668,9 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 | Alias / function | What it does |
 |---|---|
 | `t <name>` | Sets a fixed title on the current terminal tab |
-| `tc <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it |
-| `tcm <name>` | inside a repo: `git switch main`, `git pull --ff-only`, then `tc <name>`; stops if the tree is dirty or the pull is not a fast-forward |
-| `tg <name>` | `t` + starts Grok |
+| `aic <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it |
+| `aicm <name>` | inside a repo: `git switch main`, `git pull --ff-only`, then `aic <name>`; stops if the tree is dirty or the pull is not a fast-forward |
+| `aig <name>` | `t` + starts Grok |
 | `rgcode <pattern>` | `rg` skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `__pycache__`, `.next` |
 | `killproton` | Force-kills ProtonVPN |
 | `killfolder` / `killnautilus` | Force-kills the file manager (Nautilus) |
