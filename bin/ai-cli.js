@@ -39,12 +39,11 @@ const AREAS = [
     ['heic-to-jpg', 'Convert an iPhone .heic/.heif image (or a folder of them) to .jpg'],
     ['webp-to-jpg', 'Convert a .webp image (or a folder of them) to .jpg'],
     ['upscale', 'Resample an image (or a folder of images) up by an integer factor'],
-    ['watermark-image', 'Tile a rotated diagonal text watermark over an image'],
+    ['watermark', 'Tile a text watermark over images and videos (a file, a folder or the current folder)'],
     ['text-overlay', 'Draw a line of text over an image or a video'],
     ['get-first-frame', 'Extract the first frame of a video as a JPEG'],
     ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
     ['blur-video', 'Blur a video from a given second to the end'],
-    ['watermark-video', 'Tile a rotated diagonal text watermark over every frame of a video'],
     ['slideshow', 'Merge images and videos (a folder or a list of files) into one silent mp4'],
   ]],
   ['dev', [

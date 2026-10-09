@@ -21,6 +21,7 @@ const positionals = args.filter(
 );
 const duration = Number(getFlag('--duration', '3'));
 const fill = args.includes('--fill');
+const recursive = args.includes('--recursive');
 const ratio = getFlag('--ratio', '1:1');
 
 // "W:H" -> [width, height] with the short side at 1080 px and both even
@@ -38,14 +39,14 @@ const isVideo = (f) => VIDEO_EXT.has(ext(f));
 const isMedia = (f) => IMAGE_EXT.has(ext(f)) || isVideo(f);
 
 // (positionals) -> { files, defaultOutput } — no input or one folder = every
-// image/video in that folder, natural-sorted (img2 before img10); otherwise
-// the given files, in the given order.
-const planInputs = (inputs) => {
+// image/video in that folder (subfolders only when `deep`), natural-sorted
+// (img2 before img10); otherwise the given files, in the given order.
+const planInputs = (inputs, deep = false) => {
   if (inputs.length === 0) inputs = ['.'];
   if (inputs.length === 1 && fs.existsSync(inputs[0]) && fs.statSync(inputs[0]).isDirectory()) {
     const dir = inputs[0];
     const files = fs
-      .readdirSync(dir)
+      .readdirSync(dir, { recursive: deep })
       .filter((name) => isMedia(name) && fs.statSync(path.join(dir, name)).isFile())
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
       .map((name) => path.join(dir, name));
@@ -108,10 +109,13 @@ const selftest = async () => {
   const sharp = require('sharp');
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'slideshow-selftest-'));
   for (const f of ['img10.jpg', 'img2.PNG', 'clip.MP4', 'notes.txt', 'raw.heic']) fs.writeFileSync(path.join(d, f), '');
+  fs.mkdirSync(path.join(d, 'sub'));
+  fs.writeFileSync(path.join(d, 'sub', 'img3.jpg'), '');
   assert.deepStrictEqual(planInputs([d]), {
     files: [path.join(d, 'clip.MP4'), path.join(d, 'img2.PNG'), path.join(d, 'img10.jpg')],
     defaultOutput: path.join(d, 'slideshow.mp4'),
   });
+  assert.deepStrictEqual(planInputs([d], true).files.map((f) => path.relative(d, f)), ['clip.MP4', 'img2.PNG', 'img10.jpg', 'sub/img3.jpg']);
   assert.deepStrictEqual(planInputs(['b.jpg', 'a.mp4']).files, ['b.jpg', 'a.mp4']);
   assert.deepStrictEqual(frameSize('1:1'), [1080, 1080]);
   assert.deepStrictEqual(frameSize('16:9'), [1920, 1080]);
@@ -138,7 +142,7 @@ const selftest = async () => {
   assert.deepStrictEqual([meta.width, meta.height], [100, 400]);
   assert.strictEqual(plain, wide);
   fs.rmSync(d, { recursive: true });
-  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg args, --fill crop, EXIF orientation)');
+  console.log('selftest ok (folder natural sort + filter + --recursive, file order kept, ratio -> frame size, ffmpeg args, --fill crop, EXIF orientation)');
   return 0;
 };
 
@@ -150,7 +154,7 @@ const main = async () => {
   if (help || !(duration > 0) || !frame) {
     console.error(
       [
-        'Usage: slideshow [--duration S] [--ratio W:H] [--fill] [--output out.mp4] [folder | file1 file2 ...]',
+        'Usage: slideshow [--duration S] [--ratio W:H] [--fill] [--recursive] [--output out.mp4] [folder | file1 file2 ...]',
         '',
         '  (no input)        every image/video in the current folder, natural-sorted',
         '  <folder>          every image/video in that folder, natural-sorted',
@@ -160,6 +164,7 @@ const main = async () => {
         '                    default framing: fitted inside it + black bars',
         '  --fill            fill the frame instead: images cover-cropped with sharp',
         '                    attention (a heuristic, can miss the subject), videos center-cropped',
+        '  --recursive       folder input: include subfolders too',
         '  --output <path>   output mp4  [<folder>/slideshow.mp4, or ./slideshow.mp4 for files]',
         '  --help / -h       print usage and exit',
         '',
@@ -175,7 +180,7 @@ const main = async () => {
   let tmpDir = null;
   let output = null; // set only once we know the file did not exist before this run
   try {
-    const { files, defaultOutput } = planInputs(positionals);
+    const { files, defaultOutput } = planInputs(positionals, recursive);
     const target = getFlag('--output', defaultOutput);
 
     const bad = files.filter((f) => !isMedia(f) || !fs.existsSync(f));
