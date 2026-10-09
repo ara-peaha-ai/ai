@@ -483,6 +483,29 @@ gitchat --ai claude --name email-verein
 - Names cannot contain `"` or `\`.
 - Sessions are per folder: if the name exists only in another folder, it says so and creates a new one here.
 
+### `ai resume`
+
+Reopens the Claude Code sessions that a shutdown or crash killed, one gnome-terminal tab each, in each session's own folder. Named sessions get their name back as the tab title (`claude --resume <id> -n <name>`); unnamed ones let Claude set the title from the chat topic.
+
+```
+ai resume                          # sessions killed by the last shutdown/crash
+ai resume --sessions truncated     # sessions killed by any shutdown/crash the journal remembers
+ai resume --dry-run                # list them, open nothing
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `--sessions` | no | `last` \| `truncated` | `last` = only the previous boot; `truncated` = every previous boot in the journal (default: `last`) |
+| `--ai` | no | `claude` | which AI's sessions to reopen; only `claude` for now (default: `claude`) |
+| `--dry-run` | no | — | print date, session id, name and folder of each match, open nothing |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- A session counts as killed when its transcript (`~/.claude/projects/*/<id>.jsonl`) was last written in the 120 s before a boot ended. The boot end times come from `journalctl --list-boots`, so they cover crashes too, and the history is as long as journald keeps it.
+- On a clean shutdown Claude Code writes every open session when it gets SIGTERM, so idle sessions are caught too. On a hard power loss nothing is written: only the sessions that were active in those last 120 s are found.
+- A reopened session is written to again, so it stops matching: running `ai resume` twice does not open duplicates.
+- A session closed by hand in the 120 s before the shutdown is reopened too.
+- Desktop only: needs `gnome-terminal`, `journalctl` and `jq`.
+
 ### `repo-split-branches`
 
 Checks out every branch of a GitHub repo into its own folder (a git worktree), so several branches can be open side by side without switching.
@@ -677,7 +700,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
+All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`; `ai resume` needs `jq`, `journalctl` and `gnome-terminal`.
 
 ## Scraper status
 
@@ -705,7 +728,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # ai, gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
