@@ -62,9 +62,12 @@ const planInputs = (inputs) => {
 const segmentArgs = (file, secs, w, h, fill, out) => {
   // --fill: cover + center crop (images arrive pre-cropped by prepareImages, so
   // this only crops videos); default: fit inside + black bars
+  // every segment converted to and tagged as BT.709 limited range: the concat
+  // copy keeps the first segment's tags for the whole file, so they must match
+  const bt709 = 'out_color_matrix=bt709:out_range=tv';
   const frame = fill
-    ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`
-    : `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
+    ? `scale=${w}:${h}:force_original_aspect_ratio=increase:${bt709},crop=${w}:${h}`
+    : `scale=${w}:${h}:force_original_aspect_ratio=decrease:${bt709},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
   // stills are read at 1 fps (decoded ~30x less often) and trimmed back to
   // the exact duration, since a 1 fps input can only end on whole seconds
   const video = isVideo(file);
@@ -72,7 +75,9 @@ const segmentArgs = (file, secs, w, h, fill, out) => {
     '-hide_banner', '-loglevel', 'error',
     ...(video ? ['-i', file] : ['-framerate', '1', '-loop', '1', '-t', String(Math.ceil(secs)), '-i', file]),
     '-vf', `${frame},setsar=1,fps=30${video ? '' : `,trim=duration=${secs}`},format=yuv420p`, '-an',
-    '-c:v', 'libx264', '-crf', '20', '-video_track_timescale', '15360', '-n', out,
+    '-c:v', 'libx264', '-crf', '20',
+    '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
+    '-video_track_timescale', '15360', '-n', out,
   ];
 };
 
@@ -117,7 +122,7 @@ const prepareImages = async (files, w, h, tmpDir, fill) => {
       out.push(target);
       continue;
     }
-    const { data, info } = await sharp(f).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(f).rotate().toColourspace('srgb').removeAlpha().raw().toBuffer({ resolveWithObject: true });
     const raw = { raw: { width: info.width, height: info.height, channels: 3 } };
     const crop = subjectCrop(info.width, info.height, w, h, await detect(sharp, { data, width: info.width, height: info.height }));
     if (!crop) console.error(`↪ nobody found in ${f}, attention crop`);
@@ -154,24 +159,14 @@ const selftest = async () => {
   const frac = segmentArgs('a.jpg', 2.5, 1080, 1920, false, 's0.mp4');
   assert.strictEqual(frac[frac.indexOf('-t') + 1], '3');
   assert.ok(frac[frac.indexOf('-vf') + 1].includes('trim=duration=2.5,'));
-  assert.ok(img[img.indexOf('-vf') + 1].startsWith('scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920'));
+  assert.ok(/^scale=1080:1920:force_original_aspect_ratio=decrease:out_color_matrix=bt709:out_range=tv,pad=1080:1920/.test(img[img.indexOf('-vf') + 1]));
   const vid = segmentArgs('c.mp4', 2, 1080, 1920, true, 's1.mp4');
   assert.deepStrictEqual(vid.slice(3, 5), ['-i', 'c.mp4']);
   assert.ok(!vid[vid.indexOf('-vf') + 1].includes('trim'));
-  assert.ok(vid[vid.indexOf('-vf') + 1].startsWith('scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920'));
+  assert.ok(/^scale=1080:1920:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv,crop=1080:1920/.test(vid[vid.indexOf('-vf') + 1]));
   assert.strictEqual(concatList(['/t/0.mp4', "/t/it's.mp4"]), "file '/t/0.mp4'\nfile '/t/it'\\''s.mp4'\n");
-  const wide = path.join(d, 'wide.png');
-  await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).toFile(wide);
-  const [cropped] = await prepareImages([wide], 90, 160, d, true);
-  const { width, height } = await sharp(cropped).metadata();
-  assert.deepStrictEqual([width, height], [90, 160]);
-  const rotated = path.join(d, 'rotated.jpg');
-  await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).jpeg().withMetadata({ orientation: 6 }).toFile(rotated);
-  const [upright, plain] = await prepareImages([rotated, wide], 1080, 1080, d, false);
-  const meta = await sharp(upright).metadata();
-  assert.deepStrictEqual([meta.width, meta.height], [100, 400]);
-  assert.strictEqual(plain, wide);
-  const { subjectCrop } = require('../lib/subject-crop');
+  // pure checks first: they need no model download and no network
+  const { subjectCrop, decodeYolox, decodeYunet } = require('../lib/subject-crop');
   const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2, score: 1 });
   assert.strictEqual(subjectCrop(1600, 900, 9, 16, { persons: [], faces: [] }), null);
   // wide photo, vertical output: window centered on the person
@@ -188,8 +183,39 @@ const selftest = async () => {
   // background crowd smaller than 30% of the main person is ignored
   assert.deepStrictEqual(subjectCrop(1600, 900, 1, 1, { persons: [box(100, 0, 600, 900), box(1500, 700, 1550, 800)], faces: [] }),
     { left: 0, top: 0, width: 900, height: 900 });
+  // a big face outside every person (blurred background) does not move the crop
+  assert.deepStrictEqual(subjectCrop(1600, 900, 9, 16, {
+    persons: [box(1100, 100, 1300, 900)],
+    faces: [box(1150, 120, 1250, 230), box(100, 100, 300, 300)],
+  }), { left: 947, top: 0, width: 506, height: 900 });
+  // decoders: one hand-made grid cell each, expected box in image pixels
+  const yolo = new Float32Array(3549 * 85);
+  yolo.set([0.5, 0.5, Math.log(2), Math.log(4), 0.9, 0.9]);
+  const [p] = decodeYolox(yolo, 416, 0.5);
+  assert.deepStrictEqual([p.x1, p.y1, p.x2, p.y2].map((v) => +v.toFixed(3)), [-8, -24, 24, 40]);
+  const grid = (n, k) => ({ data: new Float32Array(n * k) });
+  const yunet = Object.fromEntries([8, 16, 32].flatMap((st) => {
+    const n = (64 / st) ** 2;
+    return [[`cls_${st}`, grid(n, 1)], [`obj_${st}`, grid(n, 1)], [`bbox_${st}`, grid(n, 4)]];
+  }));
+  yunet.cls_16.data[5] = 0.9;
+  yunet.obj_16.data[5] = 0.9;
+  yunet.bbox_16.data.set([0.5, 0.5, Math.log(2), Math.log(2)], 5 * 4);
+  const [fc] = decodeYunet(yunet, 64, 1);
+  assert.deepStrictEqual([fc.x1, fc.y1, fc.x2, fc.y2].map((v) => +v.toFixed(3)), [8, 8, 40, 40]);
+  const wide = path.join(d, 'wide.png');
+  await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).toFile(wide);
+  const [cropped] = await prepareImages([wide], 90, 160, d, true);
+  const { width, height } = await sharp(cropped).metadata();
+  assert.deepStrictEqual([width, height], [90, 160]);
+  const rotated = path.join(d, 'rotated.jpg');
+  await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).jpeg().withMetadata({ orientation: 6 }).toFile(rotated);
+  const [upright, plain] = await prepareImages([rotated, wide], 1080, 1080, d, false);
+  const meta = await sharp(upright).metadata();
+  assert.deepStrictEqual([meta.width, meta.height], [100, 400]);
+  assert.strictEqual(plain, wide);
   fs.rmSync(d, { recursive: true });
-  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg segment/concat args, --fill crop, EXIF orientation, subject crop geometry)');
+  console.log('selftest ok (folder natural sort + filter, file order kept, ratio -> frame size, ffmpeg segment/concat args, subject crop geometry, decoders, --fill crop, EXIF orientation)');
   return 0;
 };
 
