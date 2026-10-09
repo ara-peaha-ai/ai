@@ -426,7 +426,7 @@ Turns the images and videos of a folder, or an explicit list of files, into one 
 slideshow                               # every image/video in the current folder -> ./slideshow.mp4
 slideshow ./photos                      # every image/video in ./photos -> ./photos/slideshow.mp4
 slideshow c.jpg intro.mp4 a.jpg b.png   # exactly these, in this order -> ./slideshow.mp4
-slideshow --fill ./photos               # fill the frame, cropping around the subject
+slideshow --fill ./photos               # fill the frame, cropped around the people found
 slideshow --ratio 9:16 --fill ./photos     # vertical, for Reels/TikTok/Stories
 slideshow --duration 2 --ratio 16:9 --output reel.mp4 ./photos
 ```
@@ -436,17 +436,22 @@ slideshow --duration 2 --ratio 16:9 --output reel.mp4 ./photos
 | `[input]` | no | nothing, **one** folder, **or** one or more image/video files | no input = current folder; a folder = all its images and videos, natural-sorted (`img2` before `img10`); files = that exact order |
 | `--duration` | no | seconds (number) | how long each image stays on screen; videos always play in full (default: `3`) |
 | `--ratio` | no | `W:H` | aspect ratio of the output, e.g. `1:1`, `16:9`, `9:16`, `4:3`, `3:4`; the short side is always 1080 px (`16:9` → 1920x1080, `4:3` → 1440x1080) (default: `1:1`) |
-| `--fill` | no | — | fill the whole frame instead of letterboxing: images are cover-cropped with `sharp` attention (a heuristic, it can miss the subject, see below), videos are center-cropped |
+| `--fill` | no | — | fill the whole frame instead of letterboxing: images are cropped around the people and faces detected on CPU (see below), videos are center-cropped |
 | `--output` | no | file path | output mp4 (default: `<folder>/slideshow.mp4` for a folder, `./slideshow.mp4` for a file list) |
 | `--help` / `-h` | no | — | print usage and exit |
 
 - Accepted images: `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tif`, `.tiff`; convert `.heic`/`.avif` first with `image-to-jpg --keep`. Accepted videos: `.mp4`, `.mov`, `.m4v`, `.webm`, `.mkv`.
 - Default framing: each input is fitted inside the `--ratio` frame and letterboxed with black bars, never cropped or stretched.
 - Images are pre-processed with `sharp`, one at a time: the EXIF orientation is always applied (ffmpeg 4.4 ignores it, so phone photos rotated only in metadata would come out sideways); images without an orientation tag go to ffmpeg untouched.
-- `--fill`: the same `sharp` pass crops each image to exactly the `--ratio` frame with `position: 'attention'` (sharp's saliency strategy: luminance frequency, colour saturation, presence of skin tones); videos get a plain center crop in ffmpeg. It is a heuristic, not face/body detection: on single-subject vertical photos it frames well, on a wide photo with a crowd it can pick the crowd and cut the subject. Real detection is the `#pri 3` todo below.
-- Wraps one ffmpeg input per file (`-loop 1 -t <duration> -i <image>`, or `-i <video>`), `scale`+`pad` (or `scale`+`crop` with `--fill`) each to the frame, timestamps reset with `setpts`, joined with the `concat` filter; `libx264` (default High profile), `crf 20`, 30 fps, `yuv420p`, `+faststart`. Plays in browsers, VLC and phone galleries; not tested against the upload limits of WhatsApp or Instagram.
+- `--fill` (`bin/lib/subject-crop.js`): each image is scanned on CPU with `onnxruntime-node` by two small detectors, [YOLOX-tiny](https://github.com/Megvii-BaseDetection/YOLOX) for people (Apache-2.0, 20 MB) and [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) for faces (MIT, 0.2 MB); about 0.15 s per photo. The crop window has the largest size of the `--ratio` aspect that fits the photo, and is placed so that:
+  - faces are always inside it (when several faces cannot fit together, the biggest face and its person win);
+  - the whole subject (main people + faces) is centered when it fits; people smaller than 30% of the main one (background crowds) are ignored;
+  - when a body is taller than the window, the face sits near the top with the body below.
+
+  Photos with nobody detected fall back to `sharp`'s `attention` heuristic (a line is printed for each). Videos get a plain center crop in ffmpeg. The models are downloaded once into `~/.cache/ai-cli/models` (or `$XDG_CACHE_HOME/ai-cli/models`) and checked against pinned sha256 hashes; a mismatch is re-downloaded, never used. No GPU, paid API or generative model is involved: the photo is only cropped, never redrawn.
+- Encoding: one ffmpeg run per file, one at a time, so memory stays flat whatever the number of files (~550 MB peak on 2 cores; a single graph with every input open needed 4.7 GB for 24 photos). Each file becomes a segment: `scale`+`pad` (or `scale`+`crop` with `--fill`) to the frame, stills read at 1 fps and trimmed to the exact `--duration`, `libx264` (default High profile, preset `medium`), `crf 20`, 30 fps, `yuv420p`. The segments are then joined with the concat demuxer as a stream copy, `+faststart`. On 2 CPU cores a `--fill` slideshow encodes at about real time (60 s for 62 s of video). Plays in browsers, VLC and phone galleries; not tested against the upload limits of WhatsApp or Instagram.
 - The output is always silent: the audio of input videos is dropped. Hard cuts, no transitions. An existing output file is never overwritten: the command exits 1. A failed or interrupted run (Ctrl+C) deletes its own partial output and temp files.
-- `--selftest` checks the input planning, the ratio → frame size math, the generated ffmpeg arguments, the `--fill` crop size and the EXIF rotation, without rendering a video.
+- `--selftest` checks the input planning, the ratio → frame size math, the generated ffmpeg segment/concat arguments, the `--fill` crop size, the EXIF rotation and the subject crop geometry, without rendering a video (the first run downloads the models).
 
 ## dev
 
@@ -677,7 +682,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed). `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
+All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark-video`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark-image`, `watermark-video` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
 
 ## Scraper status
 
@@ -699,7 +704,7 @@ ai-cli/
 ├── .env.example                    # browser / browserless / API env vars (copy to .env)
 ├── bin/
 │   ├── ai-cli.js                   # command: ai-cli (lists all commands; `ai-cli doctor`)
-│   ├── lib/                        # shared code: browser.js, chatgpt-session.js, sort-media.js
+│   ├── lib/                        # shared code: browser.js, chatgpt-session.js, sort-media.js, subject-crop.js
 │   ├── ai/                         # chatgpt-image, create-virtual-ambassador, enhance-face, redact-faces
 │   │   ├── chrome-profile-chatgpt/ # persistent browser profile (ChatGPT login) — git-ignored
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
@@ -722,5 +727,4 @@ Each command is one file, named after the command (`.js`, `.sh` or `.py`). To ad
 
 ##todo @ai
 
-- `slideshow` #pri 3: `--fill` currently crops with `sharp`'s `attention` heuristic. Tested 2026-10-08 on 8 single-model photos: good on vertical shots, but it cut half a face on a tight close-up and, on a wide photo with a crowd, framed the crowd and left the subject out. If that keeps happening, replace the heuristic with real face + body boxes on CPU and crop centered on their union (locally, no paid API, no generative model that redraws the image like ChatGPT/Grok). Face detection already exists in the `enhance-face` venv (GFPGAN's `facexlib`/RetinaFace, `./install.sh --with-face`); bodies need something else, e.g. OpenCV DNN or MediaPipe Pose (a new `--with-*` install part). Not usable as-is: `upscale` (resize only), `redact-faces` (faces through the paid Sightengine API).
 - From the Grok review of PR #6, not fixed there because they need a live ChatGPT / platform run to verify: `create-virtual-ambassador` waits only for an 8s idle gap (may keep 1 of 3 images), names variants by network order, matches a stale refusal from the reopened chat, and uploads faces to quantilence.com without asking; the batch downloaders look for the avatar only at the top of the output folder and flatten subfolders by basename (same name in two highlights overwrites); `enhance-face-setup.sh` has unpinned pip packages and no weight checksums.
