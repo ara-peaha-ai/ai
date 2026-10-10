@@ -20,12 +20,15 @@ ai-cli doctor    # which browser chatgpt-image would use here (local family / br
 AI-driven image work: ChatGPT automation, face restoration, face redaction.
 
 ### `ai`
-One entry point for the toolbox: a remote model answers a prompt, or `local` runs one of the CPU tools of this repo. v0 of the AI router: the target is picked by hand; routing decisions move to Laya later.
+One entry point for the toolbox: `ai <tool> <chat name>` opens (or resumes) a named chat with that AI, `-p` asks a one-shot question, `local` runs one of the CPU tools of this repo. v0 of the AI router: the tool is picked by hand; routing decisions move to Laya later.
 
 ```
-ai claude "summarize this repo"       # Claude Code, headless (claude -p)
-ai grok "summarize this repo"         # Grok, headless (grok -p)
-ai deepseek "explain MoE in 3 lines"  # DeepSeek via NVIDIA's free API
+ai c test-name                        # claude chat "test-name" of this folder: resumed if it exists, else new
+ai c                                  # new unnamed claude chat
+ai g test-name                        # resume the grok chat titled "test-name" in this folder
+ai c -p "summarize this repo"         # Claude Code, headless (claude -p)
+ai g -p "summarize this repo"         # Grok, headless (grok -p)
+ai d "explain MoE in 3 lines"         # DeepSeek via NVIDIA's free API (prompt only)
 ai local upscale photo.jpg            # any command of this toolbox
 ai l u photo.jpg                      # same, abbreviated
 ai l                                  # list the local commands
@@ -33,14 +36,17 @@ ai l                                  # list the local commands
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<target>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
-| `<prompt...>` | yes, remote targets | string | the rest of the arguments, joined with spaces |
+| `<tool>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
+| `[chat name...]` | no | string | `claude` / `grok`: the chat to open or resume, the rest of the arguments joined with spaces; none = new unnamed chat |
+| `-p <prompt...>` | no | string | `claude` / `grok`: headless one-shot answer instead of a chat; `deepseek` always works this way, `-p` optional |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
-| `--help` / `-h` | no | — | print usage and exit; also `ai <target> --help`, and `ai l --help` lists the local commands |
+| `--help` / `-h` | no | — | print usage and exit; also `ai <tool> --help`, and `ai l --help` lists the local commands |
 
-- **Abbreviations**: every target and local command accepts any unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates.
+- **Abbreviations**: every tool and local command accepts its shortest unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`; two names `ab...` and `ac...` take `ab` and `ac`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates. New tools and commands must keep `c`, `g`, `d`, `l` unique.
+- `ai c <name>` runs `gitchat --name <name>`: chats are per folder, matched by the claude session title. `aic <name>` does the same and also sets the terminal tab title.
+- `ai g <name>` runs `grok -r <name>` (title match in this folder, case-insensitive). Grok's CLI cannot title a new chat, so an unknown name fails: open it with `ai g` and give it the title inside grok.
 - `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
-- `claude` and `grok` run the installed CLIs with `-p`, using their own login. Output, exit code and signal are theirs; piped stdin reaches them (`git diff | ai c "review this"`).
+- `claude` and `grok` run the installed CLIs, using their own login. Output, exit code and signal are theirs; with `-p` piped stdin reaches them (`git diff | ai c -p "review this"`).
 - `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
 
 ### `chatgpt-image`
