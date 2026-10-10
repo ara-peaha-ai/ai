@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// ai: one entry point for the toolbox. Remote models (claude, grok, deepseek) answer a prompt;
-// `local` runs the CPU tools of this repo. Every name accepts any unique prefix (c, g, d, l, u, ...).
+// ai: one entry point for the toolbox. `ai <tool> <chat name>` opens (or resumes) a named chat;
+// `local` runs the CPU tools of this repo. Every name accepts its shortest unique prefix (c, g, d, l, u, ...).
 // v0 of the AI router: the target is picked by hand; routing decisions move to Laya later.
 const fs = require('fs');
 const path = require('path');
@@ -10,15 +10,21 @@ const { spawn } = require('child_process');
 const REPO = path.join(__dirname, '..', '..');
 const HELP = ['-h', '--help'];
 
-const usage = `Usage: ai <target> <prompt...>
+const usage = `Usage: ai <tool> [chat name...]
+       ai <tool> -p <prompt...>
        ai local <command> [args...]
 
-Targets (full name or any unique prefix):
-  claude     Claude Code, headless (claude -p); piped stdin is passed through
-  grok       Grok, headless (grok -p); piped stdin is passed through
-  deepseek   DeepSeek through NVIDIA's free API (needs NVIDIA_API_KEY)
+Tools (full name or any unique prefix):
+  claude     "ai c <name>" opens the claude chat <name> of this folder, resuming it if it exists;
+             "ai c" alone opens a new unnamed chat; "ai c -p <prompt>" is headless (claude -p)
+  grok       "ai g <name>" resumes the grok chat titled <name> in this folder (grok -r);
+             "ai g" alone opens a new chat; "ai g -p <prompt>" is headless (grok -p)
+  deepseek   DeepSeek through NVIDIA's free API (needs NVIDIA_API_KEY), prompt only, no chats yet:
+             "ai d <prompt>" = "ai d -p <prompt>"
   local      the CPU tools of this repo, e.g. "ai l u photo.jpg" = upscale
              "ai l" alone lists them; "ai l <command> --help" for each one
+
+Piped stdin reaches the headless calls: git diff | ai c -p "review this"
 
 Env (shell, else ${path.join(REPO, '.env')}; deepseek only):
   NVIDIA_API_KEY     key from build.nvidia.com
@@ -126,10 +132,19 @@ const main = async () => {
     console.log(usage);
     process.exit(0);
   }
-  const prompt = rest.join(' ');
-  if (!prompt) fail(`missing prompt\n\n${usage}`);
-  if (target === 'deepseek') return runDeepSeek(prompt);
-  return run(target, ['-p', prompt]);
+  const headless = rest[0] === '-p' || target === 'deepseek';
+  const words = rest[0] === '-p' ? rest.slice(1) : rest;
+  if (headless) {
+    const prompt = words.join(' ');
+    if (!prompt) fail(`missing prompt\n\n${usage}`);
+    if (target === 'deepseek') return runDeepSeek(prompt);
+    return run(target, ['-p', prompt]);
+  }
+  const name = words.join(' ');
+  if (!name) return run(target, []);
+  if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name]);
+  // ponytail: grok cannot title a new chat from its CLI, so a name only resumes; new titled grok chats come when grok can
+  return run('grok', ['-r', name]);
 };
 
 main().catch((err) => fail(err.message || String(err)));
