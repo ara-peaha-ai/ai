@@ -443,15 +443,17 @@ Git and editor helpers.
 
 ### `gitpush`
 
-Runs the commit+push an AI agent prepared for you. The agent writes the commit message to `/tmp/commit/message` and the steps (`cd`, `git add`, `git commit`, `git push`, PR) to `/tmp/commit/script`; you review and run `gitpush`.
+Runs a push an AI agent prepared for you. Each push is its own entry in the gitpool of the project, `<project>/.gitpool/<repo>/<id>/`: `message` (commit message, also the PR title and body) and `script` (`cd`, commit or re-sign, `git push`, PR). You review and run `gitpush`; the commits are signed with your key and pushed with your credentials, the agent never pushes on its own.
 
 ```
-gitpush
+gitpush                 # the only pending entry, or a menu when there are several
+gitpush <repo>/<id>     # one entry by name
 ```
 
-- No flags: it just executes `/tmp/commit/script`, so the push runs with your own git/SSH credentials and the agent never pushes on its own.
-- The prepared script disarms itself after a successful run, so running `gitpush` twice is harmless (`gitpush: nothing pending`).
-- `/tmp/commit/` is one slot for the whole machine: two agents preparing pushes at the same time overwrite each other.
+- Pool lookup: the `.gitpool` of the project you are in (searched upwards from the current folder); from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
+- Entries never overwrite each other, so parallel agents can each prepare a push.
+- A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
+- Refuses a script that is a symlink, not owned by you, or merges a PR (merges go through `gitmerge`).
 
 ### `gitchat`
 
