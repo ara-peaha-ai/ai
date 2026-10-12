@@ -459,7 +459,19 @@ gitpush <repo>/<id>     # one entry by name
 - Pool lookup: the `.gitpool` of the project you are in (searched upwards from the current folder); from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
 - Entries never overwrite each other, so parallel agents can each prepare a push.
 - A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
-- Refuses a script that is a symlink, not owned by you, or merges a PR (merges go through `gitmerge`).
+- Refuses a script that is a symlink, not owned by you, or merges a PR: `gh pr merge` or a call to the PR merge API. Merges go through `gitmerge`. This is a tripwire against agent mistakes, not a sandbox.
+
+### `gitmerge`
+
+Runs the PR merge an AI agent prepared for you, kept apart from `gitpush` so a push can never merge. The agent writes what it merges to `/tmp/merge/message` (printed before running) and the steps to `/tmp/merge/script`, only after you asked for the merge.
+
+```
+gitmerge
+```
+
+- No flags: it prints `/tmp/merge/message`, asks `Merge this? [y/N]`, and only on `y` executes `/tmp/merge/script` with your own `gh` credentials.
+- The prepared script is expected to check the PR's `merge-ready` status and head commit before merging, and to disarm itself after a successful run (`gitmerge: nothing pending`).
+- Same safety checks as `gitpush`: only a regular, executable script owned by you, and a message file owned by you.
 
 ### `gitchat`
 
@@ -702,7 +714,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # gitchat, gitpush, gitmerge, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md

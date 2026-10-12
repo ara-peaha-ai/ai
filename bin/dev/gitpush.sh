@@ -35,6 +35,7 @@ s="$e/script"
 [ ! -L "$s" ] && [ -O "$s" ] && [ -O "$(dirname "$(dirname "$e")")" ] || { echo "gitpush: refusing $s (symlink or not owned by $USER)" >&2; exit 1; }
 [ -x "$s" ] || { echo "gitpush: $s is not executable" >&2; exit 1; }
 # Merges never go through gitpush: they are prepared for gitmerge
-! grep -q 'pr merge' "$s" || { echo "gitpush: $s merges a PR, refusing (use gitmerge)" >&2; exit 1; }
+# ponytail: a tripwire against agent mistakes (gh pr merge, merge API call), not a sandbox
+! grep -Eq 'pr[[:space:]]+merge|pulls/[^[:space:]]*/merge' "$s" || { echo "gitpush: $s merges a PR, refusing (use gitmerge)" >&2; exit 1; }
 echo "gitpush: ${e#*/.gitpool/} — $(head -1 "$e/message" 2>/dev/null)"
 exec "$s"
