@@ -473,7 +473,7 @@ gitpush <repo>/<id>     # one entry by name
 - Pool lookup: the `.gitpool` of the project you are in (searched upwards from the current folder); from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
 - Entries never overwrite each other, so parallel agents can each prepare a push.
 - A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
-- Refuses a script that is a symlink, not owned by you, or merges a PR (merges go through `gitmerge`).
+- Refuses a script that is a symlink, not owned by you, or merges a PR (the agent merges from its session, per the prepare-gitpush skill).
 
 ### `gitchat`
 
