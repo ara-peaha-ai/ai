@@ -469,9 +469,9 @@ Runs the PR merge an AI agent prepared for you, kept apart from `gitpush` so a p
 gitmerge
 ```
 
-- No flags: it prints `/tmp/merge/message`, asks `Merge this? [y/N]`, and only on `y` executes `/tmp/merge/script` with your own `gh` credentials.
-- The prepared script is expected to check the PR's `merge-ready` status and head commit before merging, and to disarm itself after a successful run (`gitmerge: nothing pending`).
-- Same safety checks as `gitpush`: only a regular, executable script owned by you, and a message file owned by you.
+- No flags: it prints `/tmp/merge/message` and the script itself (control characters made visible), asks `Merge this? [y/N]` at a terminal, and only on `y` runs `/tmp/merge/script` with your own `gh` credentials.
+- The prepared script is expected to check the PR's `merge-ready` status and head commit before merging. After a successful run gitmerge removes both files, so a second run says `gitmerge: nothing pending`.
+- Only a real `/tmp/merge` folder and a regular, executable script and message file owned by you. A guard against agent mistakes, not against another local user.
 
 ### `gitchat`
 
