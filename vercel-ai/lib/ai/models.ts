@@ -60,7 +60,7 @@ export const chatModels: ChatModel[] = [
     provider: "google",
   },
   {
-    capabilities: { reasoning: true, tools: true, vision: false },
+    capabilities: { reasoning: true, tools: true, vision: true },
     description:
       "NVIDIA trial API: testing only, no personal data, prompts may train NVIDIA models",
     id: "nvidia/deepseek-ai/deepseek-v4.1-flash",
