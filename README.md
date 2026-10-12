@@ -467,10 +467,12 @@ Runs a push an AI agent prepared for you. Each push is its own entry in the gitp
 
 ```
 gitpush                 # the only pending entry, or a menu when there are several
+gitpush <n>             # one entry by serial number (the <n>- prefix of its id), from any folder
 gitpush <repo>/<id>     # one entry by name
 ```
 
-- Pool lookup: the `.gitpool` of the project you are in (searched upwards from the current folder); from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
+- Entry ids are `<n>-<slug>`; agents take `<n>` from the shared counter `~/.peaha/gitpool.seq`.
+- Pool lookup without argument: the `.gitpool` of the project you are in (searched upwards from the current folder, stopping before `$HOME`); with an argument, or from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
 - Entries never overwrite each other, so parallel agents can each prepare a push.
 - A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
 - Refuses a script that is a symlink, not owned by you, or merges a PR (the agent merges from its session, per the prepare-gitpush skill).
