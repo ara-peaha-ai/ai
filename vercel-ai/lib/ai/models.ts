@@ -1,8 +1,7 @@
 export const DEFAULT_CHAT_MODEL = "openai/gpt-oss-120b";
 
-export const titleModel = {
+export const titleModel: ChatModel = {
   description: "Fast model for title generation",
-  gatewayOrder: ["xai"],
   id: "xai/grok-4.1-fast-non-reasoning",
   name: "Grok 4.1 Fast",
   provider: "xai",
@@ -20,6 +19,8 @@ export type ChatModel = {
   provider: string;
   description: string;
   gatewayOrder?: string[];
+  // Set on models that skip the gateway: used as-is instead of a gateway lookup
+  capabilities?: ModelCapabilities;
   reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
 };
 
@@ -42,7 +43,6 @@ export const chatModels: ChatModel[] = [
   },
   {
     description: "Fast non-reasoning model with tool use",
-    gatewayOrder: ["xai"],
     id: "xai/grok-4.1-fast-non-reasoning",
     name: "Grok 4.1 Fast",
     provider: "xai",
@@ -60,12 +60,15 @@ export const chatModels: ChatModel[] = [
     provider: "google",
   },
   {
-    description: "DeepSeek on NVIDIA's free API, may queue for minutes",
+    capabilities: { reasoning: true, tools: true, vision: false },
+    description:
+      "NVIDIA trial API: testing only, no personal data, prompts may train NVIDIA models",
     id: "nvidia/deepseek-ai/deepseek-v4.1-flash",
     name: "DeepSeek V4.1 Flash (NVIDIA)",
     provider: "nvidia",
   },
   {
+    capabilities: { reasoning: true, tools: true, vision: false },
     description: "DeepSeek API direct, needs a funded DEEPSEEK_API_KEY",
     id: "deepseek-direct/deepseek-v4-pro",
     name: "DeepSeek V4 Pro (direct)",
@@ -78,6 +81,9 @@ export async function getCapabilities(): Promise<
 > {
   const results = await Promise.all(
     chatModels.map(async (model) => {
+      if (model.capabilities) {
+        return [model.id, model.capabilities];
+      }
       try {
         const res = await fetch(
           `https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`,
@@ -212,7 +218,7 @@ export async function getModelAvailability(
 ): Promise<ModelAvailability> {
   const model = chatModels.find((item) => item.id === modelId);
 
-  if (!model) {
+  if (!model || model.capabilities) {
     return "unknown";
   }
 
