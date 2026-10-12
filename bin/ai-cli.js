@@ -25,6 +25,7 @@ const AREAS = [
     ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
     ['enhance-face', 'Restore/upscale faces in a portrait with GFPGAN (CPU, needs --with-face setup)'],
     ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
+    ['remove-bg-video', 'Cut people out of a video, transparent WebM (CPU, needs --with-bg-video setup)'],
   ]],
   ['social', [
     ['instagram-download', 'Download a single Instagram reel, post, or photo'],

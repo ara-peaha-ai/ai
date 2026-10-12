@@ -16,6 +16,7 @@
     "create-virtual-ambassador": "./bin/ai/create-virtual-ambassador.js",
     "enhance-face": "./bin/ai/enhance-face.sh",
     "redact-faces": "./bin/ai/redact-faces.js",
+    "remove-bg-video": "./bin/ai/remove-bg-video.sh",
     "instagram-download-batch": "./bin/social/instagram-download-batch.js",
     "instagram-download": "./bin/social/instagram-download.js",
     "tiktok-download-batch": "./bin/social/tiktok-download-batch.js",
