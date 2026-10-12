@@ -9,6 +9,8 @@ mkdir -p "$HERE"
 cd "$HERE"
 
 [ -d venv ] || python3 -m venv venv
+"$V/python" -c 'import sys; sys.exit(not (3, 10) <= sys.version_info[:2] < (3, 14))' \
+  || { echo "remove-bg-video: needs python 3.10-3.13 (numpy 2.2.6 wheels)" >&2; exit 1; }
 "$V/pip" install -q --upgrade pip wheel
 
 # CPU build of torch — no CUDA / nvidia-* packages; versions as tested 2026-10-10
@@ -17,8 +19,13 @@ cd "$HERE"
 
 # model weights (RVM is GPL-3.0: run as a tool, never bundled into something we distribute)
 mkdir -p weights
-# download to .part and rename, so an interrupted curl never leaves a file that looks ready
-fetch() { [ -s "weights/$1" ] || { curl -fL --retry 3 -o "weights/$1.part" "$2" && mv "weights/$1.part" "weights/$1"; }; }
-fetch rvm_mobilenetv3_fp32.torchscript https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.torchscript
+# TorchScript load runs code from the file: pin its hash, re-fetch anything that does not match
+SHA=f01e0c9338b9a6a31b881ea6d4360d70c1e549701b3792e14c9ed88d6196c5a1
+F=weights/rvm_mobilenetv3_fp32.torchscript
+if ! echo "$SHA  $F" | sha256sum -c --status 2>/dev/null; then
+  curl -fL --retry 3 -o "$F.part" https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.torchscript
+  echo "$SHA  $F.part" | sha256sum -c --status || { rm -f -- "$F.part"; echo "remove-bg-video: weights hash mismatch, not installed" >&2; exit 1; }
+  mv -- "$F.part" "$F"
+fi
 
 echo "ok: remove-bg-video stack ready in $HERE"
