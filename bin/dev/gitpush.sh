@@ -34,7 +34,7 @@ s="$e/script"
 # Only run a regular file owned by this user, in a pool owned by this user
 [ ! -L "$s" ] && [ -O "$s" ] && [ -O "$(dirname "$(dirname "$e")")" ] || { echo "gitpush: refusing $s (symlink or not owned by $USER)" >&2; exit 1; }
 [ -x "$s" ] || { echo "gitpush: $s is not executable" >&2; exit 1; }
-# Merges never go through gitpush: they are prepared for gitmerge
-! grep -q 'pr merge' "$s" || { echo "gitpush: $s merges a PR, refusing (use gitmerge)" >&2; exit 1; }
+# Merges never go through gitpush: the agent merges in its session once the PR is merge-ready
+! grep -q 'pr merge' "$s" || { echo "gitpush: $s merges a PR, refusing (the agent merges from its session)" >&2; exit 1; }
 echo "gitpush: ${e#*/.gitpool/} — $(head -1 "$e/message" 2>/dev/null)"
 exec "$s"
