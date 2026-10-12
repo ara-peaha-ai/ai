@@ -51,6 +51,18 @@ ai l                                  # list the local commands
 - `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
 - `ats` reads `{"cvMarkdown": "...", "jobDescription": "...", "language": "es-419"}` from stdin (`language` = BCP 47 tag of the report's free text, default `en-US`) and prints `{"score", "matchStatus", "missingHardSkills", "missingSoftSkills", "keywordDensityIssues", "formattingSuggestionsForPdf"}`. `matchStatus` (`excellent` >= 80, `good` >= 50, else `poor`) comes from the score, not from the model. Errors go to stderr with exit code 1. Model from `AI_ATS_MODEL` (default `anthropic/claude-sonnet-5.5`), routed by `bin/ai/router.js`: `deepseek-direct/<model>` and `nvidia/<model>` go straight to those APIs (`DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`), every other id through the Vercel AI Gateway (`AI_GATEWAY_API_KEY`). Keys from the shell, else from this repo's `.env` (only those keys).
 
+### `ai-bridge`
+HTTP door to the `ai` commands with a JSON stdin/stdout contract (today only `ats`), for callers that can only speak HTTP: wisdom on Cloudflare Pages through a Cloudflare Tunnel, or a container next to it on the VPS Docker network. Same code in both cases, only the URL the caller uses changes.
+
+```
+AI_CLI_TOKEN=... ai-bridge
+curl -X POST localhost:4011/ats -H "Authorization: Bearer $AI_CLI_TOKEN" -d @input.json
+```
+
+- `POST /<command>`: the body is piped to `ai <command>`; `200` + its JSON stdout, `502` + `{"error"}` with its stderr when it fails, `401` without the right `Authorization: Bearer $AI_CLI_TOKEN`, `404` for any other method or command, `413` above 1 MB.
+- Refuses to start without `AI_CLI_TOKEN`. Listens on `AI_BRIDGE_HOST:AI_BRIDGE_PORT`, default `127.0.0.1:4011`; set `AI_BRIDGE_HOST=0.0.0.0` inside a container. All three from the shell, else this repo's `.env`; the command keys (`AI_GATEWAY_API_KEY`, ...) are read by `ai` itself.
+- One child process per request, no queue.
+
 ### `chatgpt-image`
 Uploads an image to ChatGPT with a prompt and downloads the resulting generated image.
 
