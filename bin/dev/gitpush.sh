@@ -19,8 +19,12 @@ for p in "${pools[@]}"; do
 done
 if [ -n "${1:-}" ]; then
   # <n>: the serial number the agent put in front of the entry id (<n>-<slug>)
-  if [[ "$1" =~ ^[0-9]+$ ]]; then pat="*/.gitpool/*/$1-*"; else pat="*/.gitpool/$1"; fi
-  mapfile -t entries < <(for x in "${entries[@]}"; do [[ "$x" == $pat ]] && echo "$x"; done)
+  # The argument is quoted in the patterns: * ? [ in it match literally
+  if [[ "$1" =~ ^[0-9]+$ ]]; then
+    mapfile -t entries < <(for x in "${entries[@]}"; do [[ "$x" == */.gitpool/*/"$1"-* ]] && echo "$x"; done)
+  else
+    mapfile -t entries < <(for x in "${entries[@]}"; do [[ "$x" == */.gitpool/"$1" ]] && echo "$x"; done)
+  fi
   [ ${#entries[@]} = 1 ] || { echo "gitpush: no single entry matches $1" >&2; exit 1; }
 fi
 case ${#entries[@]} in
