@@ -29,6 +29,7 @@ ai g test-name                        # resume the grok chat titled "test-name" 
 ai c -p "summarize this repo"         # Claude Code, headless (claude -p)
 ai g -p "summarize this repo"         # Grok, headless (grok -p)
 ai d "explain MoE in 3 lines"         # DeepSeek via NVIDIA's free API (prompt only)
+ai ats < input.json                   # ATS report of a CV against a job description, JSON out
 ai local upscale photo.jpg            # any command of this toolbox
 ai l u photo.jpg                      # same, abbreviated
 ai l                                  # list the local commands
@@ -36,7 +37,7 @@ ai l                                  # list the local commands
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<tool>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
+| `<tool>` | yes | `claude` / `grok` / `deepseek` / `ats` / `local` | who runs it |
 | `[chat name...]` | no | string | `claude` / `grok`: the chat to open or resume, the rest of the arguments joined with spaces; none = new unnamed chat |
 | `-p <prompt...>` | no | string | `claude` / `grok`: headless one-shot answer instead of a chat; `deepseek` always works this way, `-p` optional |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
@@ -48,6 +49,7 @@ ai l                                  # list the local commands
 - `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
 - `claude` and `grok` run the installed CLIs, using their own login. Output, exit code and signal are theirs; with `-p` piped stdin reaches them (`git diff | ai c -p "review this"`).
 - `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
+- `ats` reads `{"cvMarkdown": "...", "jobDescription": "...", "language": "es-419"}` from stdin (`language` = BCP 47 tag of the report's free text, default `en-US`) and prints `{"score", "matchStatus", "missingHardSkills", "missingSoftSkills", "keywordDensityIssues", "formattingSuggestionsForPdf"}`. `matchStatus` (`excellent` >= 80, `good` >= 50, else `poor`) comes from the score, not from the model. Errors go to stderr with exit code 1. Model from `AI_ATS_MODEL` (default `anthropic/claude-sonnet-5.5`), routed by `bin/ai/router.js`: `deepseek-direct/<model>` and `nvidia/<model>` go straight to those APIs (`DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`), every other id through the Vercel AI Gateway (`AI_GATEWAY_API_KEY`). Keys from the shell, else from this repo's `.env` (only those keys).
 
 ### `chatgpt-image`
 Uploads an image to ChatGPT with a prompt and downloads the resulting generated image.
