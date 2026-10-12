@@ -124,6 +124,9 @@ Rules:
 - formattingSuggestionsForPdf: concrete advice for when this Markdown is rendered to PDF so ATS parsers read it correctly (single column, standard section headings, no tables or images for key data, text-based PDF, standard fonts, consistent date format, contact details in the body rather than in headers or footers). Base them on what this CV's Markdown actually contains and skip advice that does not apply.
 - Write every free-text item in the language with BCP 47 tag "${language}".`;
 
+// The data tags can't be closed from inside the data
+const unfence = (text) => text.replace(/<\/?(cv|job_description)>/gi, '');
+
 // ponytail: derived from the score, not asked to the model, so status and score never disagree
 const matchStatus = (score) => (score >= 80 ? 'excellent' : score >= 50 ? 'good' : 'poor');
 
@@ -139,7 +142,7 @@ const runAts = async () => {
   const input = z.object({
     cvMarkdown: z.string().trim().min(1),
     jobDescription: z.string().trim().min(1),
-    language: z.string().regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/).default('en-US'),
+    language: z.string().max(35).regex(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/).default('en-US'),
   }).safeParse(JSON.parse(fs.readFileSync(0, 'utf8') || 'null'));
   if (!input.success) fail(`invalid input: ${z.prettifyError(input.error)}`);
   const { cvMarkdown, jobDescription, language } = input.data;
@@ -155,9 +158,11 @@ const runAts = async () => {
         formattingSuggestionsForPdf: z.array(z.string()),
       }),
     }),
-    system: atsPrompt(language),
-    prompt: `<cv>\n${cvMarkdown}\n</cv>\n\n<job_description>\n${jobDescription}\n</job_description>`,
+    instructions: atsPrompt(language),
+    prompt: `<cv>\n${unfence(cvMarkdown)}\n</cv>\n\n<job_description>\n${unfence(jobDescription)}\n</job_description>`,
     temperature: 0,
+    // The CV is personal data: never hand it to a telemetry integration, even if one gets registered
+    telemetry: { isEnabled: false },
     abortSignal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS) || 300000),
   });
   process.stdout.write(`${JSON.stringify({ ...output, matchStatus: matchStatus(output.score) })}\n`);
