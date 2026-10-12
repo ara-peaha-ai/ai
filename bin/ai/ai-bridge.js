@@ -23,7 +23,7 @@ the body is piped to "ai <command>", 200 + its JSON stdout, or 502 + {"error"} w
 
 Env (shell, else ${path.join(REPO, '.env')}):
   AI_CLI_TOKEN      required, shared with the callers (e.g. wisdom's NUXT_AI_CLI_TOKEN)
-  AI_BRIDGE_HOST    default: 127.0.0.1 (0.0.0.0 inside a container)
+  AI_BRIDGE_HOST    default: 127.0.0.1; set 0.0.0.0 explicitly inside a container
   AI_BRIDGE_PORT    default: 4011
   plus the keys of each command, read by "ai" itself`);
   process.exit(0);
@@ -52,32 +52,40 @@ const send = (res, status, body) => {
 };
 
 // ponytail: one child process per request, no queue; add a concurrency cap if the VPS CPU suffers
-const runCommand = (command, input) => new Promise((resolve) => {
-  const child = spawn(process.execPath, [AI, command]);
+const runCommand = (command, input, res) => new Promise((resolve) => {
+  // The token stays in the bridge: the child loads only the keys of its command
+  const { AI_CLI_TOKEN, ...childEnv } = process.env;
+  const child = spawn(process.execPath, [AI, command], { env: childEnv });
   let stdout = '';
   let stderr = '';
-  child.stdout.on('data', (chunk) => { stdout += chunk; });
-  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  // Decoding per stream, not per chunk, keeps multibyte characters split across chunks whole
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
+  // EPIPE when the child dies before reading stdin: its exit code already reports the failure
+  child.stdin.on('error', () => {});
+  child.on('error', (err) => resolve({ code: 1, stdout: '', stderr: err.message }));
   child.on('close', (code) => resolve({ code, stdout, stderr }));
+  // The caller left: stop the model call instead of paying for an answer nobody reads
+  res.on('close', () => { if (!res.writableFinished) child.kill(); });
   child.stdin.end(input);
 });
 
 http.createServer((req, res) => {
+  // Auth first, so an unauthenticated caller cannot tell which commands exist
+  if (!authorized(req.headers.authorization)) return send(res, 401, { error: 'unauthorized' });
   const command = req.url.slice(1);
   if (req.method !== 'POST' || !COMMANDS.includes(command)) return send(res, 404, { error: 'not found' });
-  if (!authorized(req.headers.authorization)) return send(res, 401, { error: 'unauthorized' });
 
-  let body = '';
-  req.setEncoding('utf8');
+  const chunks = [];
+  let size = 0;
   req.on('data', (chunk) => {
-    body += chunk;
-    if (body.length > MAX_BODY) {
-      send(res, 413, { error: 'body too large' });
-      req.destroy();
-    }
+    size += chunk.length;
+    if (size <= MAX_BODY) chunks.push(chunk);
   });
   req.on('end', async () => {
-    const { code, stdout, stderr } = await runCommand(command, body);
+    if (size > MAX_BODY) return send(res, 413, { error: 'body too large' });
+    const { code, stdout, stderr } = await runCommand(command, Buffer.concat(chunks), res);
+    if (res.destroyed) return;
     if (code === 0) return send(res, 200, stdout);
     send(res, 502, { error: stderr.replace(/\x1b\[[0-9;]*m/g, '').trim() || `ai ${command} exited with ${code}` });
   });
