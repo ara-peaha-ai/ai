@@ -12,6 +12,7 @@
   "bin": {
     "ai-cli": "./bin/ai-cli.js",
     "ai": "./bin/ai/ai.js",
+    "ai-bridge": "./bin/ai/ai-bridge.js",
     "chatgpt-image": "./bin/ai/chatgpt-image.js",
     "create-virtual-ambassador": "./bin/ai/create-virtual-ambassador.js",
     "enhance-face": "./bin/ai/enhance-face.sh",
@@ -48,6 +49,7 @@
     "@ai-sdk/openai-compatible": "3.0.55",
     "ai": "7.0.114",
     "puppeteer-core": "^25.5.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "zod": "^4.6.6"
   }
 }
