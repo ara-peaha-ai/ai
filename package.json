@@ -12,6 +12,7 @@
   "bin": {
     "ai-cli": "./bin/ai-cli.js",
     "ai": "./bin/ai/ai.js",
+    "ai-bridge": "./bin/ai/ai-bridge.js",
     "chatgpt-image": "./bin/ai/chatgpt-image.js",
     "create-virtual-ambassador": "./bin/ai/create-virtual-ambassador.js",
     "enhance-face": "./bin/ai/enhance-face.sh",
