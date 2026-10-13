@@ -17,31 +17,52 @@ ai-cli doctor    # which browser chatgpt-image would use here (local family / br
 
 ## ai
 
-AI-driven image work: ChatGPT automation, face restoration, face redaction.
+AI-driven image and video work: ChatGPT automation, face restoration, face redaction, video background removal.
 
 ### `ai`
-One entry point for the toolbox: a remote model answers a prompt, or `local` runs one of the CPU tools of this repo. v0 of the AI router: the target is picked by hand; routing decisions move to Laya later.
+One entry point for the toolbox: `ai <tool> <chat name>` opens (or resumes) a named chat with that AI, `-p` asks a one-shot question, `local` runs one of the CPU tools of this repo. v0 of the AI router: the tool is picked by hand; routing decisions move to Laya later.
 
 ```
-ai claude "summarize this repo"       # Claude Code, headless (claude -p)
-ai grok "summarize this repo"         # Grok, headless (grok -p)
-ai deepseek "explain MoE in 3 lines"  # DeepSeek via NVIDIA's free API
+ai c test-name                        # claude chat "test-name" of this folder: resumed if it exists, else new
+ai c                                  # new unnamed claude chat
+ai g test-name                        # resume the grok chat titled "test-name" in this folder
+ai c -p "summarize this repo"         # Claude Code, headless (claude -p)
+ai g -p "summarize this repo"         # Grok, headless (grok -p)
+ai d "explain MoE in 3 lines"         # DeepSeek via NVIDIA's free API (prompt only)
+ai ats < input.json                   # ATS report of a CV against a job description, JSON out
 ai local upscale photo.jpg            # any command of this toolbox
 ai l u photo.jpg                      # same, abbreviated
 ai l                                  # list the local commands
+ai resume                             # reopen the chats a shutdown killed, see `ai-resume`
 ```
 
 | Flag | Required | Value | Description |
 |---|---|---|---|
-| `<target>` | yes | `claude` / `grok` / `deepseek` / `local` | who runs it |
-| `<prompt...>` | yes, remote targets | string | the rest of the arguments, joined with spaces |
+| `<tool>` | yes | `claude` / `grok` / `deepseek` / `ats` / `local` / `resume` | who runs it; `resume` passes its flags to [`ai-resume`](#ai-resume) |
+| `[chat name...]` | no | string | `claude` / `grok`: the chat to open or resume, the rest of the arguments joined with spaces; none = new unnamed chat |
+| `-p <prompt...>` | no | string | `claude` / `grok`: headless one-shot answer instead of a chat; `deepseek` always works this way, `-p` optional |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
-| `--help` / `-h` | no | — | print usage and exit; also `ai <target> --help`, and `ai l --help` lists the local commands |
+| `--help` / `-h` | no | — | print usage and exit; also `ai <tool> --help`, and `ai l --help` lists the local commands |
 
-- **Abbreviations**: every target and local command accepts any unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates.
+- **Abbreviations**: every tool and local command accepts its shortest unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`; two names `ab...` and `ac...` take `ab` and `ac`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates. New tools and commands must keep `c`, `g`, `d`, `l` unique.
+- `ai c <name>` runs `gitchat --name <name>`: chats are per folder, matched by the claude session title. `aic <name>` does the same and also sets the terminal tab title.
+- `ai g <name>` runs `grok -r <name>` (title match in this folder, case-insensitive). Grok's CLI cannot title a new chat, so an unknown name fails: open it with `ai g` and give it the title inside grok.
 - `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
-- `claude` and `grok` run the installed CLIs with `-p`, using their own login. Output, exit code and signal are theirs; piped stdin reaches them (`git diff | ai c "review this"`).
+- `claude` and `grok` run the installed CLIs, using their own login. Output, exit code and signal are theirs; with `-p` piped stdin reaches them (`git diff | ai c -p "review this"`).
 - `deepseek` calls `https://integrate.api.nvidia.com/v1` (OpenAI-compatible) through the Vercel AI SDK and streams the answer. Needs `NVIDIA_API_KEY` from the shell, else from this repo's `.env` (only the `NVIDIA_API_KEY`, `AI_DEEPSEEK_MODEL` and `AI_TIMEOUT_MS` keys are read from it, so other keys in that file never reach the spawned agents). Model from `AI_DEEPSEEK_MODEL`, default `deepseek-ai/deepseek-v4.1-flash`. Free tier, for trials only: ~40 requests/min, can queue for minutes when busy, so a call with no answer gives up after `AI_TIMEOUT_MS` (default 5 min). If the model leaves the answer empty and puts it all in its reasoning, the reasoning is printed. Needs Node >= 22.12 (the AI SDK is ESM-only).
+- `ats` reads `{"cvMarkdown": "...", "jobDescription": "...", "language": "es-419"}` from stdin (`language` = BCP 47 tag of the report's free text, default `en-US`) and prints `{"score", "matchStatus", "missingHardSkills", "missingSoftSkills", "keywordDensityIssues", "formattingSuggestionsForPdf"}`. `matchStatus` (`excellent` >= 80, `good` >= 50, else `poor`) comes from the score, not from the model. Errors go to stderr with exit code 1. Model from `AI_ATS_MODEL` (default `anthropic/claude-sonnet-5.5`), routed by `bin/ai/router.js`: `deepseek-direct/<model>` and `nvidia/<model>` go straight to those APIs (`DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`), every other id through the Vercel AI Gateway (`AI_GATEWAY_API_KEY`). Keys from the shell, else from this repo's `.env` (only those keys). The CV and the job description are sent to that provider. Needs a model with JSON-schema structured outputs (the Gateway ones): the direct prefixes only get JSON mode, so their answer may fail the schema.
+
+### `ai-bridge`
+HTTP door to the `ai` commands with a JSON stdin/stdout contract (today only `ats`), for callers that can only speak HTTP: wisdom on Cloudflare Pages through a Cloudflare Tunnel, or a container next to it on the VPS Docker network. Same code in both cases, only the URL the caller uses changes.
+
+```
+AI_CLI_TOKEN=... ai-bridge
+curl -X POST localhost:4011/ats -H "Authorization: Bearer $AI_CLI_TOKEN" -d @input.json
+```
+
+- `POST /<command>`: the body is piped to `ai <command>`; `200` + its JSON stdout, `502` + `{"error"}` with its stderr when it fails, `401` without the right `Authorization: Bearer $AI_CLI_TOKEN` (checked first), `404` for any other method or command, `413` above 1 MB.
+- Refuses to start without `AI_CLI_TOKEN`. Listens on `AI_BRIDGE_HOST:AI_BRIDGE_PORT`, default `127.0.0.1:4011`; set `AI_BRIDGE_HOST=0.0.0.0` inside a container. All three from the shell, else this repo's `.env`; the command keys (`AI_GATEWAY_API_KEY`, ...) are read by `ai` itself.
+- One child process per request, no queue; it is killed when the caller disconnects. The child does not get `AI_CLI_TOKEN`.
 
 ### `chatgpt-image`
 Uploads an image to ChatGPT with a prompt and downloads the resulting generated image.
@@ -125,6 +146,27 @@ redact-faces ./input.mp4   # if SIGHTENGINE_USER / SIGHTENGINE_SECRET are set
 - Images: single synchronous call to Sightengine's Image Redaction API (`transform.json`).
 - Videos: submits to the Video Redaction API (`video/transform.json`), then polls `video/byid.json` every 2s for up to 30 attempts (~1 minute) until the transform finishes, then downloads the result.
 - Output: saved next to the input file as `<input-name>-redacted.<ext>`.
+
+### `remove-bg-video`
+
+Cuts the people out of a video and makes everything else transparent, with RobustVideoMatting (CPU only). The audio is kept (re-encoded to Opus). It is a person matting model: the background drops, but objects touching the person can stay (see the chair below).
+
+```
+remove-bg-video ./clip.mp4               # -> clip-nobg.webm
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | video file (anything ffmpeg reads) | positional argument |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Needs a one-time setup of ~1 GB (CPU torch, RVM weights): `./install.sh --with-bg-video`, or `bin/ai/remove-bg-video-setup.sh` directly.
+- The venv and the weights live outside the repo, in `$REMOVE_BG_VIDEO_HOME` (default `~/.local/share/peaha-rvm`). Only the scripts are versioned.
+- Output: `<name>-nobg.webm` next to the input (VP9 with alpha, Opus audio), written only when the whole video is done; the original is never touched.
+- Speed, measured 2026-10-10 on a 14.6 s 720x1280 clip with 6 cores (the AI VPS size): 5 fps, ~70 s, ~1 GB RAM. With ffmpeg 4.4 (Ubuntu 22.04) the VP9 encoder is the bottleneck and the same clip takes ~146 s; ffmpeg 7.1 (Debian 13) runs at full speed.
+- Uses every core it is given: run one video at a time.
+- Known limits from the test: a chair back behind the shoulders stays in the cut-out, and subtitles burned into the video become half transparent (cut the clean video, add subtitles after).
+- RobustVideoMatting is GPL-3.0: fine as a tool we run, not to be bundled into software we distribute.
 
 ## social
 
@@ -449,15 +491,19 @@ Git and editor helpers.
 
 ### `gitpush`
 
-Runs the commit+push an AI agent prepared for you. The agent writes the commit message to `/tmp/commit/message` and the steps (`cd`, `git add`, `git commit`, `git push`, PR) to `/tmp/commit/script`; you review and run `gitpush`.
+Runs a push an AI agent prepared for you. Each push is its own entry in the gitpool of the project, `<project>/.gitpool/<repo>/<id>/`: `message` (commit message, also the PR title and body) and `script` (`cd`, commit or re-sign, `git push`, PR). You review and run `gitpush`; the commits are signed with your key and pushed with your credentials, the agent never pushes on its own.
 
 ```
-gitpush
+gitpush                 # the only pending entry, or a menu when there are several
+gitpush <n>             # one entry by serial number (the <n>- prefix of its id), from any folder
+gitpush <repo>/<id>     # one entry by name
 ```
 
-- No flags: it just executes `/tmp/commit/script`, so the push runs with your own git/SSH credentials and the agent never pushes on its own.
-- The prepared script disarms itself after a successful run, so running `gitpush` twice is harmless (`gitpush: nothing pending`).
-- `/tmp/commit/` is one slot for the whole machine: two agents preparing pushes at the same time overwrite each other.
+- Entry ids are `<n>-<slug>`; agents take `<n>` from the shared counter `~/.peaha/gitpool.seq`.
+- Pool lookup without argument: the `.gitpool` of the project you are in (searched upwards from the current folder, stopping before `$HOME`); with an argument, or from anywhere else, the `.gitpool` of every project next to the one holding ai-cli.
+- Entries never overwrite each other, so parallel agents can each prepare a push.
+- A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
+- Refuses a script that is a symlink, not owned by you, or merges a PR (the agent merges from its session, per the prepare-gitpush skill).
 
 ### `gitchat`
 
@@ -477,6 +523,29 @@ gitchat --ai claude --name email-verein
 - Looks the name up in `~/.claude/projects/<slug of the current path>/*.jsonl`: only the `custom-title` record line written by `claude -n`, never text quoted inside a transcript; the most recently modified matching session wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
 - Names cannot contain `"` or `\`.
 - Sessions are per folder: if the name exists only in another folder, it says so and creates a new one here.
+
+### `ai-resume`
+
+Same as `ai resume`. Reopens the Claude Code sessions that a shutdown or crash killed, one gnome-terminal tab each, in each session's own folder. Named sessions get their name back as the tab title (`claude --resume <id> -n <name>`); unnamed ones let Claude set the title from the chat topic.
+
+```
+ai resume                          # sessions killed by the last shutdown/crash
+ai resume --sessions truncated     # sessions killed by any shutdown/crash the journal remembers
+ai resume --dry-run                # list them, open nothing
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `--sessions` | no | `last` \| `truncated` | `last` = only the previous boot; `truncated` = every previous boot in the journal (default: `last`) |
+| `--ai` | no | `claude` | which AI's sessions to reopen; only `claude` for now (default: `claude`) |
+| `--dry-run` | no | — | print date, session id, name and folder of each match, open nothing |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- A session counts as killed when its transcript (`~/.claude/projects/*/<id>.jsonl`) was last written between 120 s before and 5 s after a boot ended. A boot ends at its last journal record (`journalctl -b <n> -n 1`), so they cover crashes too, and the history is as long as journald keeps it.
+- On a clean shutdown Claude Code writes every open session when it gets SIGTERM, so idle sessions are caught too. On a hard power loss nothing is written: only the sessions that were active in those last 120 s are found.
+- A reopened session is written to again, so it stops matching: running `ai resume` twice does not open duplicates.
+- A session closed by hand in the 120 s before the shutdown is reopened too.
+- Desktop only: needs `claude`, `gnome-terminal`, `journalctl` and `jq`. Transcripts are read from `$CLAUDE_CONFIG_DIR/projects` when that is set.
 
 ### `repo-split-branches`
 
@@ -638,6 +707,7 @@ share-qr 'some text' --out wifi.png
 ```
 ./install.sh               # everything below
 ./install.sh --with-face   # also build the enhance-face stack (~2 GB)
+./install.sh --with-bg-video   # also build the remove-bg-video stack (~1 GB)
 ./install.sh --help
 ```
 
@@ -654,7 +724,7 @@ The commands are linked into the global bin folder of the current Node version. 
 
 ### Server install (planned)
 
-The same `install.sh` is meant to become the one entry point for a VPS, in the style of the BTCPay Server installer: a cloud-init `user-data` script pasted in the provider's form clones the repo and runs `./install.sh` with flags that pick which parts to set up (the way BTCPay uses `BTCPAYGEN_*` fragments and pruning options). Today the only optional part is `--with-face`; new parts get added as new `--with-*` flags, so existing installs keep working unchanged.
+The same `install.sh` is meant to become the one entry point for a VPS, in the style of the BTCPay Server installer: a cloud-init `user-data` script pasted in the provider's form clones the repo and runs `./install.sh` with flags that pick which parts to set up (the way BTCPay uses `BTCPAYGEN_*` fragments and pruning options). Today the optional parts are `--with-face` and `--with-bg-video`; new parts get added as new `--with-*` flags, so existing installs keep working unchanged.
 
 ### Shell aliases
 
@@ -672,7 +742,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `wsname` needs `jq`.
+All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `remove-bg-video` needs Python 3.10–3.13 with `venv`, `curl`, `ffmpeg` + `ffprobe` with `libvpx-vp9` and `libopus` and ~1 GB of disk (`./install.sh --with-bg-video`). `wsname` needs `jq`; `ai-resume` needs `claude`, `jq` and `gnome-terminal`.
 
 ## Scraper status
 
@@ -695,12 +765,12 @@ ai-cli/
 ├── bin/
 │   ├── ai-cli.js                   # command: ai-cli (lists all commands; `ai-cli doctor`)
 │   ├── lib/                        # shared code: browser.js, chatgpt-session.js, sort-media.js, subject-crop.js
-│   ├── ai/                         # chatgpt-image, create-virtual-ambassador, enhance-face, redact-faces
+│   ├── ai/                         # chatgpt-image, create-virtual-ambassador, enhance-face, redact-faces, remove-bg-video
 │   │   ├── chrome-profile-chatgpt/ # persistent browser profile (ChatGPT login) — git-ignored
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # ai-resume, gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
