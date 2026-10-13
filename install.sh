@@ -2,15 +2,18 @@
 # Install or update every ai-cli command on this machine. Safe to re-run.
 #   ./install.sh               npm deps, global commands (npm link), shell aliases, auto-update hook
 #   ./install.sh --with-face   also build the enhance-face stack (~2 GB, CPU torch + GFPGAN weights)
+#   ./install.sh --with-bg-video   also build the remove-bg-video stack (~1 GB, CPU torch + RVM weights)
 # System tools the commands shell out to (ffmpeg, imagemagick, qrencode, jq, gallery-dl) are
 # listed in README.md; this script does not apt-install them.
 set -euo pipefail
 
 with_face=0
+with_bg_video=0
 for arg in "$@"; do
   case "$arg" in
     --with-face) with_face=1 ;;
-    -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --with-bg-video) with_bg_video=1 ;;
+    -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
@@ -35,5 +38,6 @@ grep -qF "$repo/shell/aliases.sh" "$HOME/.bashrc" 2>/dev/null || {
 }
 
 [ "$with_face" = 0 ] || bin/ai/enhance-face-setup.sh
+[ "$with_bg_video" = 0 ] || bin/ai/remove-bg-video-setup.sh
 
 echo "ok: $(node -e "console.log(Object.keys(require('./package.json').bin).length)") commands linked into $gbin"
