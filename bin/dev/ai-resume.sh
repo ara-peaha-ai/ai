@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# ai resume: reopen AI chat sessions killed by a shutdown or crash, one gnome-terminal tab each.
+# ai-resume (also `ai resume`): reopen AI chat sessions killed by a shutdown or crash, one
+# gnome-terminal tab each.
 #
 # Usage:
 #   ai resume                          sessions killed by the last shutdown/crash (= --sessions last)
@@ -9,13 +10,7 @@
 
 set -euo pipefail
 
-usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; }
-
-case "${1:-}" in
-  resume) shift ;;
-  -h|--help) usage; exit 0 ;;
-  *) usage >&2; exit 1 ;;
-esac
+usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; }
 
 ai=claude
 sessions=last

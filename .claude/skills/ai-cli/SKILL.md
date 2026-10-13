@@ -1,0 +1,29 @@
+---
+name: ai-cli
+description: Design rules of the `ai` command of ai-cli — `ai <tool> <chat name | command>`, every name abbreviable to its shortest unique prefix. Use before adding or renaming a tool, target or local command of `ai`, or when changing how `ai` parses its arguments.
+---
+
+# ai-cli: the `ai` command
+
+The shape is fixed: `ai <tool> <chat name | command>`.
+
+| Position | What | Rule |
+|---|---|---|
+| 1 | tool: `claude`, `grok`, `deepseek` (for now), or `local` | the AI or the toolbox that runs it |
+| 2+ | chat name (AI tools) or command + args (`local`) | for an AI tool, free words are the name of the chat to open or resume in this folder, never a prompt |
+| `-p` | one-shot prompt | the only way to send a headless prompt to `claude` / `grok`; `deepseek` has no chats yet, so its words are the prompt |
+
+## Abbreviations
+
+- Every tool and every local command is reachable by its **shortest unique prefix**: today `c`, `g`, `d`, `l`; when two names share a start, the prefix grows until it is unique (`ab...` / `ac...` take `ab` / `ac`).
+- An exact name always wins over a longer one with the same start.
+- Ambiguous or unknown prefixes print the candidates and exit 1; never guess.
+- Adding a tool or command: check that it does not steal the one-letter prefix of an existing tool (`c`, `g`, `d`, `l`); if it would, rename it.
+
+## Chats
+
+- `claude`: `gitchat --name` (resume by session title in this folder, else new titled session).
+- `grok`: `grok -r <title>` (resume only: grok's CLI cannot title a new chat).
+- A new AI tool joins with: a chat path (name → open/resume), a `-p` path, and a usage line. If it cannot keep named chats, say so in the usage and fall back to prompt only, like `deepseek`.
+
+The user-facing reference is the `ai` section of the repo README; keep both in sync.
