@@ -34,6 +34,7 @@
     "watermark": "./bin/media/watermark.js",
     "slideshow": "./bin/media/slideshow.js",
     "webp-to-jpg": "./bin/media/webp-to-jpg.js",
+    "ai-resume": "./bin/dev/ai-resume.sh",
     "fixvscode": "./bin/dev/fixvscode.sh",
     "gitchat": "./bin/dev/gitchat.sh",
     "gitpush": "./bin/dev/gitpush.sh",

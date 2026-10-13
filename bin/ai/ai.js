@@ -26,6 +26,7 @@ Tools (full name or any unique prefix):
              {"cvMarkdown", "jobDescription", "language"?: BCP 47 tag of the report} -> JSON on stdout
   local      the CPU tools of this repo, e.g. "ai l u photo.jpg" = upscale
              "ai l" alone lists them; "ai l <command> --help" for each one
+  resume     reopen the chats a shutdown or crash killed, one terminal tab each; "ai r --help"
 
 Piped stdin reaches the headless calls: git diff | ai c -p "review this"
 
@@ -187,9 +188,10 @@ const main = async () => {
     console.log(usage);
     process.exit(query ? 0 : 1);
   }
-  const target = pick(query, ['claude', 'grok', 'deepseek', 'ats', 'local']);
+  const target = pick(query, ['claude', 'grok', 'deepseek', 'ats', 'local', 'resume']);
   if (!target) process.exit(1);
   if (target === 'local') return runLocal(rest);
+  if (target === 'resume') return run(path.join(REPO, 'bin', 'dev', 'ai-resume.sh'), rest);
 
   if (rest.length === 1 && HELP.includes(rest[0])) {
     console.log(usage);

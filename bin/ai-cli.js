@@ -49,6 +49,7 @@ const AREAS = [
     ['slideshow', 'Merge images and videos (a folder or a list of files) into one silent mp4'],
   ]],
   ['dev', [
+    ['ai-resume', 'Reopen the AI sessions a shutdown or crash killed, one terminal tab each (= ai resume)'],
     ['gitchat', 'Open a named Claude Code session for this folder, resuming it if it exists'],
     ['gitpush', 'Run a push an AI agent prepared in the project gitpool (.gitpool/<repo>/<id>)'],
     ['repo-split-branches', 'Check out every branch of a repo into its own worktree folder'],
