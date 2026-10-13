@@ -48,7 +48,8 @@ done
 found=0
 for entry in "$reg"/*; do
   [ -f "$entry" ] || continue
-  IFS=$'\t' read -r b cwd transcript < "$entry"
+  # A torn or empty record (power loss mid-write) is skipped, not fatal
+  IFS=$'\t' read -r b cwd transcript < "$entry" || continue
   [ "$b" != "$boot" ] || continue
   found=1
   id=$(basename "$entry")
@@ -57,10 +58,10 @@ for entry in "$reg"/*; do
   [ "$dry" = 0 ] || continue
   command -v gnome-terminal >/dev/null || { echo "gnome-terminal not found" >&2; exit 1; }
   [ -d "$cwd" ] || { echo "  skipped: folder no longer exists" >&2; rm -f -- "$entry"; continue; }
-  # The resumed chat registers itself again with this boot
-  rm -f -- "$entry"
   # Unnamed sessions get no -n: claude then sets the tab title from its own topic
   gnome-terminal --tab --working-directory="$cwd" -- bash -c 'claude --resume "$1" ${2:+-n "$2"}; exec bash' _ "$id" "$name"
+  # Dropped only once the tab opened; the resumed chat registers itself again with this boot
+  rm -f -- "$entry"
   sleep 1
 done
 [ "$found" = 1 ] || echo "No killed $ai session found"
