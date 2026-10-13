@@ -37,6 +37,17 @@ grep -qF "$repo/shell/aliases.sh" "$HOME/.bashrc" 2>/dev/null || {
   echo "added aliases to ~/.bashrc (open a new terminal to load them)"
 }
 
+# Claude Code hooks that keep ai-resume's list of open chats; drops older ai-resume hooks first
+settings="$HOME/.claude/settings.json"
+mkdir -p "$HOME/.claude"
+[ -f "$settings" ] || echo '{}' > "$settings"
+jq --arg cmd "$repo/bin/dev/ai-resume.sh" '
+  def put(event; flag): .hooks[event] = ((.hooks[event] // [])
+    | map(select(any(.hooks[]?; .command | tostring | contains("ai-resume")) | not))
+    + [{hooks: [{type: "command", command: ($cmd + " " + flag)}]}]);
+  put("SessionStart"; "--register") | put("SessionEnd"; "--unregister")' "$settings" > "$settings.tmp"
+mv "$settings.tmp" "$settings"
+
 [ "$with_face" = 0 ] || bin/ai/enhance-face-setup.sh
 [ "$with_bg_video" = 0 ] || bin/ai/remove-bg-video-setup.sh
 
