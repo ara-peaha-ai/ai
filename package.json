@@ -12,10 +12,12 @@
   "bin": {
     "ai-cli": "./bin/ai-cli.js",
     "ai": "./bin/ai/ai.js",
+    "ai-bridge": "./bin/ai/ai-bridge.js",
     "chatgpt-image": "./bin/ai/chatgpt-image.js",
     "create-virtual-ambassador": "./bin/ai/create-virtual-ambassador.js",
     "enhance-face": "./bin/ai/enhance-face.sh",
     "redact-faces": "./bin/ai/redact-faces.js",
+    "remove-bg-video": "./bin/ai/remove-bg-video.sh",
     "instagram-download-batch": "./bin/social/instagram-download-batch.js",
     "instagram-download": "./bin/social/instagram-download.js",
     "tiktok-download-batch": "./bin/social/tiktok-download-batch.js",
@@ -32,6 +34,7 @@
     "watermark": "./bin/media/watermark.js",
     "slideshow": "./bin/media/slideshow.js",
     "webp-to-jpg": "./bin/media/webp-to-jpg.js",
+    "ai-resume": "./bin/dev/ai-resume.sh",
     "fixvscode": "./bin/dev/fixvscode.sh",
     "gitchat": "./bin/dev/gitchat.sh",
     "gitpush": "./bin/dev/gitpush.sh",
@@ -49,6 +52,7 @@
     "ai": "7.0.114",
     "onnxruntime-node": "1.30.0",
     "puppeteer-core": "^25.5.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "zod": "^4.6.6"
   }
 }

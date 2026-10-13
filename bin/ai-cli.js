@@ -20,11 +20,13 @@ if (process.argv[2] === 'doctor') {
 
 const AREAS = [
   ['ai', [
-    ['ai', 'One entry point: ai claude|grok|deepseek <prompt>, ai local <command> (any unique prefix)'],
+    ['ai', 'One entry point: ai claude|grok|deepseek <prompt>, ai ats < json, ai local <command> (any unique prefix)'],
+    ['ai-bridge', 'HTTP door (Bearer token) to the JSON commands of ai, e.g. POST /ats'],
     ['chatgpt-image', 'Upload an image to ChatGPT with a prompt, download the result'],
     ['create-virtual-ambassador', 'Derive an avatar from reference photos via ChatGPT image generation'],
     ['enhance-face', 'Restore/upscale faces in a portrait with GFPGAN (CPU, needs --with-face setup)'],
     ['redact-faces', 'Blur/redact faces in an image or video via the Sightengine API'],
+    ['remove-bg-video', 'Cut people out of a video, transparent WebM (CPU, needs --with-bg-video setup)'],
   ]],
   ['social', [
     ['instagram-download', 'Download a single Instagram reel, post, or photo'],
@@ -47,8 +49,9 @@ const AREAS = [
     ['slideshow', 'Merge images and videos (a folder or a list of files) into one silent mp4'],
   ]],
   ['dev', [
+    ['ai-resume', 'Reopen the AI sessions a shutdown or crash killed, one terminal tab each (= ai resume)'],
     ['gitchat', 'Open a named Claude Code session for this folder, resuming it if it exists'],
-    ['gitpush', 'Run the commit+push an AI agent prepared in /tmp/commit/script'],
+    ['gitpush', 'Run a push an AI agent prepared in the project gitpool (.gitpool/<repo>/<id>)'],
     ['repo-split-branches', 'Check out every branch of a repo into its own worktree folder'],
     ['repo-join-branches', 'Fold the worktree folders back, saving uncommitted work as wip commits'],
     ['search-string', 'Search file names + content for a string in a directory'],
