@@ -660,7 +660,7 @@ translate-text --input "Good morning, how are you?" --output IT
 | `--output` | yes | language code | DeepL target language: `IT`, `ES`, `DE`, `FR`, ... English and Portuguese need the variant: `EN-US`/`EN-GB`, `PT-BR`/`PT-PT` |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Needs `DEEPL_API_KEY` from the shell, else from this repo's `.env`. A free plan key ends in `:fx` and `deepl-node` routes it to `api-free.deepl.com` by itself (500,000 characters/month).
+- Needs `DEEPL_API_KEY` from the shell, else from this repo's `.env` (only that key is read from it). `deepl-node` picks the endpoint from the key: one ending in `:fx` (DeepL API Free) goes to `api-free.deepl.com`, any other to `api.deepl.com`. Quotas depend on the DeepL plan, see your DeepL account.
 - The text is sent to DeepL.
 
 ## Setup from scratch (to replicate on a VPS)
