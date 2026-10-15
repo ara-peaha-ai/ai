@@ -145,28 +145,26 @@ const main = async () => {
     }))
   ]
 
-  // waiting = something has yet to happen (review, verdict, running check): pending (yellow), not failure (red)
-  const blockers = []
-  let waiting = 0
-  if (!rows.some(r => r.state === 'pass')) blockers.push('no passing review yet'), waiting++
-  for (const r of rows.filter(r => r.state === 'fail')) blockers.push(`${r.name}: changes requested`)
-  if (threads) blockers.push(`${threads} unresolved review thread(s)`)
-  for (const name of required) {
-    const state = rows.find(r => r.name.toLowerCase() === name)?.state
-    if (state !== 'pass') blockers.push(`${name}: required verdict missing`), waiting += state !== 'fail'
-  }
-  for (const c of otherChecks.filter(c => c.state === 'fail')) blockers.push(`check ${c.name} failed`)
-  const pending = otherChecks.filter(c => c.state === 'pending')
-  for (const c of pending) blockers.push(`check ${c.name} still running`), waiting++
+  // waiting = something has yet to happen (review, verdict, running check): pending (yellow); any hard blocker: failure (red)
+  const waiting = []
+  const hard = []
+  if (!rows.some(r => r.state === 'pass')) waiting.push('no passing review yet')
+  for (const r of rows.filter(r => r.state === 'fail')) hard.push(`${r.name}: changes requested`)
+  if (threads) hard.push(`${threads} unresolved review thread(s)`)
+  // a failed required verdict is already a "changes requested" line
+  for (const name of required) if (!['pass', 'fail'].includes(rows.find(r => r.name.toLowerCase() === name)?.state)) waiting.push(`${name}: required verdict missing`)
+  for (const c of otherChecks.filter(c => c.state === 'fail')) hard.push(`check ${c.name} failed`)
+  for (const c of otherChecks.filter(c => c.state === 'pending')) waiting.push(`check ${c.name} still running`)
 
+  const blockers = [...hard, ...waiting]
   const ready = blockers.length === 0
-  const status = ready ? 'success' : blockers.length === waiting ? 'pending' : 'failure'
+  const status = ready ? 'success' : hard.length ? 'failure' : 'pending'
   const description = ready ? 'Ready to merge' : blockers[0].slice(0, 140)
 
   const short = head.slice(0, 7)
   const body = [
     STICKY,
-    ready ? `### ✅ Ready to merge (\`${short}\`)` : `### ⏳ Not ready to merge (\`${short}\`)`,
+    ready ? `### ✅ Ready to merge (\`${short}\`)` : `### ${status === 'pending' ? '⏳' : '❌'} Not ready to merge (\`${short}\`)`,
     '',
     '| Reviewer | Verdict | Commit |',
     '|---|---|---|',
