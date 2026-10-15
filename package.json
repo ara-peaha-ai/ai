@@ -42,7 +42,8 @@
     "repo-split-branches": "./bin/dev/repo-split-branches.sh",
     "search-string": "./bin/dev/search-string.js",
     "wsname": "./bin/dev/wsname.sh",
-    "share-qr": "./bin/utils/share-qr.js"
+    "share-qr": "./bin/utils/share-qr.js",
+    "translate-text": "./bin/utils/translate-text.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -50,6 +51,7 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.55",
     "ai": "7.0.114",
+    "deepl-node": "^1.28.1",
     "puppeteer-core": "^25.5.0",
     "sharp": "^0.35.3",
     "zod": "^4.6.6"

@@ -60,6 +60,7 @@ const AREAS = [
   ]],
   ['utils', [
     ['share-qr', 'Print/save a QR code for arbitrary text'],
+    ['translate-text', 'Translate a text with DeepL: translate-text --input "text" --output IT'],
   ]],
 ];
 
