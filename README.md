@@ -647,6 +647,22 @@ share-qr 'some text' --out wifi.png
 - With `--out file.png`: wraps `qrencode -o file.png -s 10 -l H <text>`.
 - Text is passed straight to `qrencode` as a single argument (no shell involved), so special characters like `$ @ # ' "` don't need any escaping — just quote the whole argument in your shell (single quotes `'...'` are safest, they stop your shell from expanding `$vars` before the command ever sees them).
 
+### `translate-text`
+Translates a text with the DeepL API (`deepl-node`) and prints the result. The source language is auto-detected.
+
+```
+translate-text --input "Good morning, how are you?" --output IT
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `--input` | yes | string | text to translate |
+| `--output` | yes | language code | DeepL target language: `IT`, `ES`, `DE`, `FR`, ... English and Portuguese need the variant: `EN-US`/`EN-GB`, `PT-BR`/`PT-PT` |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Needs `DEEPL_API_KEY` from the shell, else from this repo's `.env` (only that key is read from it). `deepl-node` picks the endpoint from the key: one ending in `:fx` (DeepL API Free) goes to `api-free.deepl.com`, any other to `api.deepl.com`. Quotas depend on the DeepL plan, see your DeepL account.
+- The text is sent to DeepL.
+
 ## Setup from scratch (to replicate on a VPS)
 
 1. **Node.js + npm** (via nvm, recommended):
@@ -771,7 +787,7 @@ ai-cli/
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
 │   ├── dev/                        # ai-resume, gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
-│   └── utils/                      # share-qr
+│   └── utils/                      # share-qr, translate-text
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
 ```
