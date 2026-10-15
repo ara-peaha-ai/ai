@@ -52,6 +52,7 @@
     "@ai-sdk/openai-compatible": "3.0.55",
     "ai": "7.0.114",
     "deepl-node": "^1.28.1",
+    "onnxruntime-node": "1.30.0",
     "puppeteer-core": "^25.5.0",
     "sharp": "^0.35.3",
     "zod": "^4.6.6"

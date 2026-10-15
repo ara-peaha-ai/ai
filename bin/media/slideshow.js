@@ -55,25 +55,45 @@ const planInputs = (inputs, deep = false) => {
   return { files: inputs, defaultOutput: 'slideshow.mp4' };
 };
 
-// one input per file (images looped for `secs`, videos as they are), each
-// framed to WxH, then joined with the concat filter (the concat demuxer breaks
-// timestamps on ffmpeg 4.x when inputs differ in size). Always video-only:
-// the audio of input videos is dropped.
-const buildArgs = (files, secs, w, h, output, fill = false) => {
-  const inputs = files.flatMap((f) => (isVideo(f) ? ['-i', f] : ['-loop', '1', '-t', String(secs), '-i', f]));
+// One ffmpeg run per file (image looped for `secs`, video as it is), framed
+// to WxH with identical encoder settings, so the segments can be joined with
+// the concat demuxer as a stream copy. One input at a time keeps memory flat:
+// a single filter graph with every input open grew to GBs on a few dozen
+// photos. Always video-only: the audio of input videos is dropped.
+const segmentArgs = (file, secs, w, h, fill, out) => {
   // --fill: cover + center crop (images arrive pre-cropped by prepareImages, so
   // this only crops videos); default: fit inside + black bars
+  // every segment converted to and tagged as BT.709 limited range: the concat
+  // copy keeps the first segment's tags for the whole file, so they must match
+  const bt709 = 'out_color_matrix=bt709:out_range=tv';
   const frame = fill
-    ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`
-    : `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
-  // setpts: inputs with a non-zero start time (common on phone videos) start at 0
-  const chains = files.map((_, i) => `[${i}:v]${frame},setsar=1,fps=30,format=yuv420p,setpts=PTS-STARTPTS[v${i}]`);
-  const joined = `${files.map((_, i) => `[v${i}]`).join('')}concat=n=${files.length}:v=1:a=0[out]`;
+    ? `scale=${w}:${h}:force_original_aspect_ratio=increase:${bt709},crop=${w}:${h}`
+    : `scale=${w}:${h}:force_original_aspect_ratio=decrease:${bt709},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`;
+  // stills are read at 1 fps (decoded ~30x less often) and trimmed back to
+  // the exact duration, since a 1 fps input can only end on whole seconds
+  const video = isVideo(file);
   return [
-    '-hide_banner', '-loglevel', 'error', '-stats', ...inputs,
-    '-filter_complex', [...chains, joined].join(';'), '-map', '[out]',
-    '-c:v', 'libx264', '-crf', '20', '-movflags', '+faststart', '-n', output,
+    '-hide_banner', '-loglevel', 'error',
+    ...(video ? ['-i', file] : ['-framerate', '1', '-loop', '1', '-t', String(Math.ceil(secs)), '-i', file]),
+    '-vf', `${frame},setsar=1,fps=30${video ? '' : `,trim=duration=${secs}`},format=yuv420p`, '-an',
+    '-c:v', 'libx264', '-crf', '20',
+    '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
+    '-video_track_timescale', '15360', '-n', out,
   ];
+};
+
+const concatArgs = (listFile, output) => [
+  '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', listFile,
+  '-c', 'copy', '-movflags', '+faststart', '-n', output,
+];
+
+// concat demuxer list; paths are quoted for the demuxer's own syntax
+const concatList = (segments) => segments.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n') + '\n';
+
+const ffmpeg = (argv) => {
+  const r = spawnSync('ffmpeg', argv, { stdio: 'inherit' });
+  if (r.error) throw new Error('ffmpeg not found. Install with: sudo apt install ffmpeg');
+  if (r.status !== 0 || interrupted) throw new Error(interrupted ? 'interrupted' : `ffmpeg failed (exit ${r.status ?? r.signal})`);
 };
 
 // Ctrl+C / kill: ffmpeg gets the signal too and exits on its own; this flag
@@ -83,13 +103,14 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { interrupted = t
 
 // Image pre-pass with sharp, one image at a time (bounded memory on big
 // folders), written as PNG into tmpDir:
-// - --fill: crop to exactly WxH with sharp's "attention" strategy (luminance
-//   frequency, colour saturation, presence of skin tones);
 // - always: apply the EXIF orientation, which ffmpeg 4.4 ignores. Images
-//   without an orientation tag go to ffmpeg untouched when not filling.
-// ponytail: attention is a heuristic, not detection — real face/body boxes are the #pri 3 todo in README.
+//   without an orientation tag go to ffmpeg untouched when not filling;
+// - --fill: crop to exactly WxH around the people and faces found on CPU
+//   (bin/lib/subject-crop.js); with nobody found, sharp's "attention"
+//   heuristic picks the crop instead.
 const prepareImages = async (files, w, h, tmpDir, fill) => {
   const sharp = require('sharp');
+  const { detect, subjectCrop, releaseModels } = require('../lib/subject-crop');
   const out = [];
   for (const [i, f] of files.entries()) {
     if (interrupted) throw new Error('interrupted');
@@ -97,10 +118,22 @@ const prepareImages = async (files, w, h, tmpDir, fill) => {
     const { orientation } = await sharp(f).metadata();
     if (!fill && !(orientation > 1)) { out.push(f); continue; }
     const target = path.join(tmpDir, `${i}.png`);
-    const img = sharp(f).rotate();
-    await (fill ? img.resize(w, h, { fit: 'cover', position: sharp.strategy.attention }) : img).toFile(target);
+    if (!fill) {
+      await sharp(f).rotate().toFile(target);
+      out.push(target);
+      continue;
+    }
+    const { data, info } = await sharp(f).rotate().toColourspace('srgb').removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const raw = { raw: { width: info.width, height: info.height, channels: 3 } };
+    const crop = subjectCrop(info.width, info.height, w, h, await detect(sharp, { data, width: info.width, height: info.height }));
+    if (!crop) console.error(`↪ nobody found in ${f}, attention crop`);
+    await (crop
+      ? sharp(data, raw).extract(crop).resize(w, h)
+      : sharp(data, raw).resize(w, h, { fit: 'cover', position: sharp.strategy.attention })
+    ).toFile(target);
     out.push(target);
   }
+  await releaseModels();
   return out;
 };
 
@@ -124,12 +157,56 @@ const selftest = async () => {
   assert.deepStrictEqual(frameSize('3:4'), [1080, 1440]);
   assert.strictEqual(frameSize('1080x1920'), null);
   assert.strictEqual(frameSize('0:1'), null);
-  const graphOf = (built) => built[built.indexOf('-filter_complex') + 1];
-  const built = buildArgs(['a.jpg', 'c.mp4'], 2, 1080, 1920, 'out.mp4');
-  assert.deepStrictEqual(built.slice(4, 12), ['-loop', '1', '-t', '2', '-i', 'a.jpg', '-i', 'c.mp4']);
-  assert.ok(graphOf(built).includes('force_original_aspect_ratio=decrease,pad=1080:1920'));
-  assert.ok(graphOf(built).endsWith('[v0][v1]concat=n=2:v=1:a=0[out]'));
-  assert.ok(graphOf(buildArgs(['a.jpg'], 2, 1080, 1920, 'out.mp4', true)).includes('force_original_aspect_ratio=increase,crop=1080:1920'));
+  const img = segmentArgs('a.jpg', 2, 1080, 1920, false, 's0.mp4');
+  assert.deepStrictEqual(img.slice(3, 11), ['-framerate', '1', '-loop', '1', '-t', '2', '-i', 'a.jpg']);
+  assert.ok(img[img.indexOf('-vf') + 1].includes('fps=30,trim=duration=2,'));
+  const frac = segmentArgs('a.jpg', 2.5, 1080, 1920, false, 's0.mp4');
+  assert.strictEqual(frac[frac.indexOf('-t') + 1], '3');
+  assert.ok(frac[frac.indexOf('-vf') + 1].includes('trim=duration=2.5,'));
+  assert.ok(/^scale=1080:1920:force_original_aspect_ratio=decrease:out_color_matrix=bt709:out_range=tv,pad=1080:1920/.test(img[img.indexOf('-vf') + 1]));
+  const vid = segmentArgs('c.mp4', 2, 1080, 1920, true, 's1.mp4');
+  assert.deepStrictEqual(vid.slice(3, 5), ['-i', 'c.mp4']);
+  assert.ok(!vid[vid.indexOf('-vf') + 1].includes('trim'));
+  assert.ok(/^scale=1080:1920:force_original_aspect_ratio=increase:out_color_matrix=bt709:out_range=tv,crop=1080:1920/.test(vid[vid.indexOf('-vf') + 1]));
+  assert.strictEqual(concatList(['/t/0.mp4', "/t/it's.mp4"]), "file '/t/0.mp4'\nfile '/t/it'\\''s.mp4'\n");
+  // pure checks first: they need no model download and no network
+  const { subjectCrop, decodeYolox, decodeYunet } = require('../lib/subject-crop');
+  const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2, score: 1 });
+  assert.strictEqual(subjectCrop(1600, 900, 9, 16, { persons: [], faces: [] }), null);
+  // wide photo, vertical output: window centered on the person
+  assert.deepStrictEqual(subjectCrop(1600, 900, 9, 16, { persons: [box(1100, 100, 1300, 900)], faces: [box(1150, 120, 1250, 230)] }),
+    { left: 947, top: 0, width: 506, height: 900 });
+  // two faces too far apart: the biggest one and its person win
+  assert.deepStrictEqual(subjectCrop(1600, 900, 9, 16, {
+    persons: [box(0, 100, 400, 900), box(1100, 100, 1500, 900)],
+    faces: [box(100, 150, 200, 260), box(1200, 120, 1360, 300)],
+  }), { left: 1047, top: 0, width: 506, height: 900 });
+  // tall photo, wide output, body taller than the window: face near the top
+  assert.deepStrictEqual(subjectCrop(900, 1600, 16, 9, { persons: [box(200, 300, 700, 1600)], faces: [box(380, 350, 520, 520)] }),
+    { left: 0, top: 310, width: 900, height: 506 });
+  // background crowd smaller than 30% of the main person is ignored
+  assert.deepStrictEqual(subjectCrop(1600, 900, 1, 1, { persons: [box(100, 0, 600, 900), box(1500, 700, 1550, 800)], faces: [] }),
+    { left: 0, top: 0, width: 900, height: 900 });
+  // a big face outside every person (blurred background) does not move the crop
+  assert.deepStrictEqual(subjectCrop(1600, 900, 9, 16, {
+    persons: [box(1100, 100, 1300, 900)],
+    faces: [box(1150, 120, 1250, 230), box(100, 100, 300, 300)],
+  }), { left: 947, top: 0, width: 506, height: 900 });
+  // decoders: one hand-made grid cell each, expected box in image pixels
+  const yolo = new Float32Array(3549 * 85);
+  yolo.set([0.5, 0.5, Math.log(2), Math.log(4), 0.9, 0.9]);
+  const [p] = decodeYolox(yolo, 416, 0.5);
+  assert.deepStrictEqual([p.x1, p.y1, p.x2, p.y2].map((v) => +v.toFixed(3)), [-8, -24, 24, 40]);
+  const grid = (n, k) => ({ data: new Float32Array(n * k) });
+  const yunet = Object.fromEntries([8, 16, 32].flatMap((st) => {
+    const n = (64 / st) ** 2;
+    return [[`cls_${st}`, grid(n, 1)], [`obj_${st}`, grid(n, 1)], [`bbox_${st}`, grid(n, 4)]];
+  }));
+  yunet.cls_16.data[5] = 0.9;
+  yunet.obj_16.data[5] = 0.9;
+  yunet.bbox_16.data.set([0.5, 0.5, Math.log(2), Math.log(2)], 5 * 4);
+  const [fc] = decodeYunet(yunet, 64, 1);
+  assert.deepStrictEqual([fc.x1, fc.y1, fc.x2, fc.y2].map((v) => +v.toFixed(3)), [8, 8, 40, 40]);
   const wide = path.join(d, 'wide.png');
   await sharp({ create: { width: 400, height: 100, channels: 3, background: '#888' } }).toFile(wide);
   const [cropped] = await prepareImages([wide], 90, 160, d, true);
@@ -142,7 +219,7 @@ const selftest = async () => {
   assert.deepStrictEqual([meta.width, meta.height], [100, 400]);
   assert.strictEqual(plain, wide);
   fs.rmSync(d, { recursive: true });
-  console.log('selftest ok (folder natural sort + filter + --recursive, file order kept, ratio -> frame size, ffmpeg args, --fill crop, EXIF orientation)');
+  console.log('selftest ok (folder natural sort + filter + --recursive, file order kept, ratio -> frame size, ffmpeg segment/concat args, subject crop geometry, decoders, --fill crop, EXIF orientation)');
   return 0;
 };
 
@@ -162,8 +239,8 @@ const main = async () => {
         '  --duration <S>    seconds per image; videos always play in full  [3]',
         '  --ratio <W:H>     aspect ratio, short side 1080 px: 1:1, 16:9, 9:16, 4:3, 3:4, ...  [1:1]',
         '                    default framing: fitted inside it + black bars',
-        '  --fill            fill the frame instead: images cover-cropped with sharp',
-        '                    attention (a heuristic, can miss the subject), videos center-cropped',
+        '  --fill            fill the frame instead: images cropped around the people and faces',
+        '                    found on CPU (models downloaded once, ~20 MB), videos center-cropped',
         '  --recursive       folder input: include subfolders too',
         '  --output <path>   output mp4  [<folder>/slideshow.mp4, or ./slideshow.mp4 for files]',
         '  --help / -h       print usage and exit',
@@ -193,9 +270,15 @@ const main = async () => {
 
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slideshow-'));
     const inputs = await prepareImages(files, w, h, tmpDir, fill);
-    const r = spawnSync('ffmpeg', buildArgs(inputs, duration, w, h, output, fill), { stdio: 'inherit' });
-    if (r.error) throw new Error('ffmpeg not found. Install with: sudo apt install ffmpeg');
-    if (r.status !== 0 || interrupted) throw new Error(interrupted ? 'interrupted' : `ffmpeg failed (exit ${r.status ?? r.signal})`);
+    const segments = inputs.map((f, i) => {
+      console.error(`[${i + 1}/${inputs.length}] ${files[i]}`);
+      const seg = path.join(tmpDir, `seg${i}.mp4`);
+      ffmpeg(segmentArgs(f, duration, w, h, fill, seg));
+      return seg;
+    });
+    const listFile = path.join(tmpDir, 'list.txt');
+    fs.writeFileSync(listFile, concatList(segments));
+    ffmpeg(concatArgs(listFile, output));
     const videos = files.filter(isVideo).length;
     console.log(`✅ ${output} (${files.length - videos} images × ${duration}s + ${videos} videos)`);
     output = null;
