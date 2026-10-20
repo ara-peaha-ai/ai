@@ -4,10 +4,12 @@
 # Usage:
 #   gitchat --name email-verein               -> claude (default)
 #   gitchat --ai claude --name email-verein
+# Started in ~ (desktop terminals), a new chat opens in the project folder instead
+# (AI_CHAT_HOME, default: the folder holding this repo), where project permissions load.
 
 set -euo pipefail
 
-usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; }
 
 ai=claude
 name=""
@@ -33,7 +35,14 @@ record="{\"type\":\"custom-title\",\"customTitle\":\"$name\","
 # Match the record at line start only: transcripts that merely quote it must not count
 find_named() { awk -v p="$record" 'index($0, p) == 1 { print FILENAME; nextfile }' "$@" 2>/dev/null || true; }
 
-file=$(find_named "$projects/$(pwd | sed 's/[^A-Za-z0-9]/-/g')"/*.jsonl | xargs -r -d '\n' ls -t | head -1)
+named_here() { find_named "$projects/$(pwd | sed 's/[^A-Za-z0-9]/-/g')"/*.jsonl | xargs -r -d '\n' ls -t | head -1; }
+file=$(named_here)
+
+# ~ loads no project settings: chats already in ~ resume there, new ones move to the project folder
+if [ -z "$file" ] && [ "$(pwd -P)" = "$(cd "$HOME" && pwd -P)" ]; then
+  cd "${AI_CHAT_HOME:-$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)}"
+  file=$(named_here)
+fi
 
 if [ -n "$file" ]; then
   id=$(basename "$file" .jsonl)
