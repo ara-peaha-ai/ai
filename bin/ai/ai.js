@@ -210,7 +210,8 @@ const main = async () => {
   const name = words.join(' ');
   // Same rule as gitchat.sh: a new claude chat started in ~ opens in the project folder
   const chatHome = process.env.AI_CHAT_HOME || path.dirname(REPO);
-  if (!name) return run(target, [], target === 'claude' && process.cwd() === os.homedir() ? chatHome : undefined);
+  const inHome = fs.realpathSync(process.cwd()) === fs.realpathSync(os.homedir());
+  if (!name) return run(target, [], target === 'claude' && inHome ? chatHome : undefined);
   if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name]);
   // ponytail: grok cannot title a new chat from its CLI, so a name only resumes; new titled grok chats come when grok can
   return run('grok', ['-r', name]);

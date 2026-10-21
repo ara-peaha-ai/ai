@@ -40,7 +40,7 @@ file=$(named_here)
 
 # ~ loads no project settings: chats already in ~ resume there, new ones move to the project folder
 if [ -z "$file" ] && [ "$(pwd -P)" = "$(cd "$HOME" && pwd -P)" ]; then
-  cd "${AI_CHAT_HOME:-$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)}"
+  cd -P -- "${AI_CHAT_HOME:-$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)}"
   file=$(named_here)
 fi
 
