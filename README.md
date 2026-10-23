@@ -505,6 +505,33 @@ gitpush <repo>/<id>     # one entry by name
 - A successful script removes its own entry: what is left in `.gitpool` is what is still pending.
 - Refuses a script that is a symlink, not owned by you, or merges a PR (the agent merges from its session, per the prepare-gitpush skill).
 
+### `github-events`
+Prints GitHub events as they happen, one JSON line each: pushes, PR opened/merged, reviews, review and issue comments, completed checks and workflow runs, commit statuses. Agents run it as a background monitor instead of polling GitHub. Events come from the `github-events` Worker (below), so the ones that arrive while the laptop is off are kept and replayed.
+
+```
+github-events                          # every repo, from now on
+github-events --repo ara-peaha-ai/wisdom
+github-events --since 120              # replay what came after event 120, then live
+```
+
+- Line shape: `{"seq", "ts", "event", "action", "repo", "actor", ...}` plus per event `pr`, `sha`, `state`, `conclusion`, `name`, `ref`, `assoc` (author association), `text` (first 200 chars of the body).
+- Reconnects on its own every 5 s and resumes from the last event it printed.
+- Reads `~/.peaha/github-events.env`, written by `github-events-setup`.
+
+### `github-events-setup`
+Deploys the `github-events` Cloudflare Worker (`workers/github-events/`) and points GitHub webhooks at it. Safe to re-run: it keeps the secrets and updates the webhooks it created.
+
+```
+github-events-setup                      # your user + the orgs you admin (first run), then the saved ones
+github-events-setup ara-peaha-ai fantasia-lat learntheropes
+```
+
+- Org: one org webhook. User account: one webhook per own repo, forks and archived ones skipped (GitHub has no user-level webhook), so re-run it after creating a repo.
+- Needs `wrangler` logged in (`CLOUDFLARE_ACCOUNT_ID` when the login has several accounts) and `gh` with the `admin:org_hook` scope: `gh auth refresh -s admin:org_hook`.
+- Worker: `POST /webhook` checks the `X-Hub-Signature-256` HMAC, keeps the event 30 days in a Durable Object (SQLite); `GET /ws` streams them over a WebSocket, auth by the `v1, <CLIENT_TOKEN>` subprotocols, `?repo=` and `?since=` as above. Check: `wrangler dev --port 8799 --var WEBHOOK_SECRET:testsecret --var CLIENT_TOKEN:testtoken`, then `node workers/github-events/check.mjs`.
+- `./install.sh --with-github-events` runs it on a new machine; after that every `./install.sh` re-deploys it on its own.
+- Secrets in `~/.peaha/github-events.env` (mode 600). Second machine of the same person: copy that file there first, else the setup makes new secrets and the first machine stops receiving.
+
 ### `gitchat`
 
 Opens a named Claude Code session for the current folder: resumes it if a session with that name already exists here, otherwise creates it. Prints which one it did before opening.
@@ -787,8 +814,9 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # ai-resume, gitchat, gitpush, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # ai-resume, gitchat, gitpush, github-events, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr, translate-text
+├── workers/github-events/          # Cloudflare Worker behind github-events
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
 ```

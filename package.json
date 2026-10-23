@@ -38,6 +38,8 @@
     "fixvscode": "./bin/dev/fixvscode.sh",
     "gitchat": "./bin/dev/gitchat.sh",
     "gitpush": "./bin/dev/gitpush.sh",
+    "github-events": "./bin/dev/github-events.mjs",
+    "github-events-setup": "./bin/dev/github-events-setup.sh",
     "repo-join-branches": "./bin/dev/repo-join-branches.sh",
     "repo-split-branches": "./bin/dev/repo-split-branches.sh",
     "search-string": "./bin/dev/search-string.js",
