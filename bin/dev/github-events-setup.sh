@@ -22,7 +22,8 @@ WEBHOOK_SECRET="${WEBHOOK_SECRET:-$(openssl rand -hex 32)}"
 CLIENT_TOKEN="${CLIENT_TOKEN:-$(openssl rand -hex 32)}"
 
 cd "$worker"
-url=$("${wrangler[@]}" deploy 2>&1 | tee /dev/stderr | grep -oE 'https://[a-z0-9.-]+\.workers\.dev' | head -1)
+# -m1: grep stops itself, no SIGPIPE under pipefail; the Worker refuses everything until its secrets exist
+url=$("${wrangler[@]}" deploy 2>&1 | tee /dev/stderr | grep -m1 -oE 'https://github-events\.[a-z0-9-]+\.workers\.dev' || true)
 [ -n "$url" ] || { echo "deploy did not print a workers.dev URL" >&2; exit 1; }
 printf '%s' "$WEBHOOK_SECRET" | "${wrangler[@]}" secret put WEBHOOK_SECRET >/dev/null
 printf '%s' "$CLIENT_TOKEN" | "${wrangler[@]}" secret put CLIENT_TOKEN >/dev/null
@@ -33,18 +34,20 @@ printf '%s' "$CLIENT_TOKEN" | "${wrangler[@]}" secret put CLIENT_TOKEN >/dev/nul
 # create the hook, or update the one already pointing at this Worker
 hook () { # $1 = API path of the hooks list (orgs/<org>/hooks or repos/<owner>/<repo>/hooks)
   local id body
-  id=$(gh api "$1" --jq ".[] | select(.config.url == \"$url/webhook\") | .id" | head -1)
-  body=$(jq -n --arg u "$url/webhook" --arg s "$WEBHOOK_SECRET" --argjson e "$events" \
-    '{name: "web", active: true, events: $e, config: {url: $u, content_type: "json", secret: $s, insecure_ssl: "0"}}')
+  id=$(gh api "$1" --paginate --jq ".[] | select(.config.url == \"$url/webhook\") | .id" | sed -n 1p)
+  # the secret goes through the environment, not jq's argv (visible in the process list)
+  body=$(WEBHOOK_SECRET="$WEBHOOK_SECRET" jq -n --arg u "$url/webhook" --argjson e "$events" \
+    '{name: "web", active: true, events: $e, config: {url: $u, content_type: "json", secret: env.WEBHOOK_SECRET, insecure_ssl: "0"}}')
   if [ -n "$id" ]; then gh api -X PATCH "$1/$id" --input - <<< "$body" >/dev/null; echo "updated $1/$id"
   else gh api -X POST "$1" --input - <<< "$body" --jq '"created '"$1"'/" + (.id|tostring)'; fi
 }
 
+me=$(gh api user --jq .login)
 for o in "${owners[@]}"; do
   if [ "$(gh api "users/$o" --jq .type)" = Organization ]; then hook "orgs/$o/hooks"
   else
     # forks and archived (read-only) repos get no webhook; one failing repo does not stop the rest
-    while read -r r; do hook "repos/$r/hooks" || echo "skipped repos/$r" >&2; done < <(gh api "$( [ "$o" = "$(gh api user --jq .login)" ] && echo "user/repos?affiliation=owner" || echo "users/$o/repos?type=owner")&per_page=100" --paginate --jq '.[] | select((.fork or .archived) | not) | .full_name')
+    while read -r r; do hook "repos/$r/hooks" || echo "skipped repos/$r" >&2; done < <(gh api "$( [ "${o,,}" = "${me,,}" ] && echo "user/repos?affiliation=owner" || echo "users/$o/repos?type=owner")&per_page=100" --paginate --jq '.[] | select((.fork or .archived) | not) | .full_name')
   fi
 done
 
