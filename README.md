@@ -46,6 +46,7 @@ ai resume                             # reopen the chats a shutdown killed, see 
 
 - **Abbreviations**: every tool and local command accepts its shortest unique prefix: one letter when it is enough (`c`, `g`, `d`, `l`, `u`), more when names share a start (`ai l sl` = `slideshow`, `ai l gitp` = `gitpush`; two names `ab...` and `ac...` take `ab` and `ac`). An exact name always wins (`instagram-download` vs `instagram-download-batch`). Ambiguous or unknown names print the candidates. New tools and commands must keep `c`, `g`, `d`, `l` unique.
 - `ai c <name>` runs `gitchat --name <name>`: chats are per folder, matched by the claude session title. `aic <name>` does the same and also sets the terminal tab title.
+- Started in `~` (terminals opened from the desktop UI), `ai c`, `ai c <name>` and `aic <name>` open a new chat in the project folder instead (`AI_CHAT_HOME`, default: the folder holding this repo), where the project's `.claude/settings.json` loads with the agent's narrow `gh pr merge` rule (auto mode does not apply broad user allows such as `Bash(*)`, while a narrow allow like that one is applied before its classifier). `ai c <name>` and `aic <name>` resume a chat that already exists in `~`, in `~`; otherwise they resume or create it in `AI_CHAT_HOME`. Unnamed `ai c` from `~` always starts in `AI_CHAT_HOME`. Headless `ai c -p` keeps the current folder.
 - `ai g <name>` runs `grok -r <name>` (title match in this folder, case-insensitive). Grok's CLI cannot title a new chat, so an unknown name fails: open it with `ai g` and give it the title inside grok.
 - `ai local` reads the command list from `package.json` `bin`, so new commands show up without touching `ai`. The standalone names (`upscale`, `gitpush`, ...) keep working.
 - `claude` and `grok` run the installed CLIs, using their own login. Output, exit code and signal are theirs; with `-p` piped stdin reaches them (`git diff | ai c -p "review this"`).
@@ -780,7 +781,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 | Alias / function | What it does |
 |---|---|
 | `t <name>` | Sets a fixed title on the current terminal tab |
-| `aic <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it |
+| `aic <name>` | `t` + `gitchat --name <name>`: resumes the Claude Code session with that name, or creates it; started in `~`, a name not found in `~` is resumed or created in `AI_CHAT_HOME` |
 | `aicm <name>` | inside a repo: `git switch main`, `git pull --ff-only`, then `aic <name>`; stops if the tree is dirty or the pull is not a fast-forward |
 | `aig <name>` | `t` + starts Grok |
 | `rgcode <pattern>` | `rg` skipping `node_modules`, `.git`, `dist`, `build`, `venv`, `__pycache__`, `.next` |
