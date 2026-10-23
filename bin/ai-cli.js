@@ -52,6 +52,8 @@ const AREAS = [
     ['ai-resume', 'Reopen the AI sessions a shutdown or crash killed, one terminal tab each (= ai resume)'],
     ['gitchat', 'Open a named Claude Code session for this folder, resuming it if it exists'],
     ['gitpush', 'Run a push an AI agent prepared in the project gitpool (.gitpool/<repo>/<id>)'],
+    ['github-events', 'Print GitHub events (push, review, checks, comments) live, one JSON line each'],
+    ['github-events-setup', 'Deploy the github-events Cloudflare Worker and point the GitHub webhooks at it'],
     ['repo-split-branches', 'Check out every branch of a repo into its own worktree folder'],
     ['repo-join-branches', 'Fold the worktree folders back, saving uncommitted work as wip commits'],
     ['search-string', 'Search file names + content for a string in a directory'],

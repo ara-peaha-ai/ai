@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+.wrangler/
 
 # auth / browser profiles (contain live login sessions)
 chrome-profile-chatgpt/
