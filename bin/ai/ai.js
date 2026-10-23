@@ -208,10 +208,10 @@ const main = async () => {
     return run(target, ['-p', prompt]);
   }
   const name = words.join(' ');
-  // Same rule as gitchat.sh: a new claude chat started in ~ opens in the project folder
-  const chatHome = process.env.AI_CHAT_HOME || path.dirname(REPO);
-  const inHome = fs.realpathSync(process.cwd()) === fs.realpathSync(os.homedir());
-  if (!name) return run(target, [], target === 'claude' && inHome ? chatHome : undefined);
+  // Same rule as gitchat.sh: a new claude chat started in ~ opens in the project folder;
+  // checked only for that case, and an unresolvable cwd or home just keeps the current folder
+  const inHome = () => { try { return fs.realpathSync(process.cwd()) === fs.realpathSync(os.homedir()) } catch { return false } };
+  if (!name) return run(target, [], target === 'claude' && inHome() ? (process.env.AI_CHAT_HOME || path.dirname(REPO)) : undefined);
   if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name]);
   // ponytail: grok cannot title a new chat from its CLI, so a name only resumes; new titled grok chats come when grok can
   return run('grok', ['-r', name]);
