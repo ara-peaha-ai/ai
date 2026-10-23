@@ -59,6 +59,7 @@ rm -f -- "$tmp"
 
 [ "$with_face" = 0 ] || bin/ai/enhance-face-setup.sh
 [ "$with_bg_video" = 0 ] || bin/ai/remove-bg-video-setup.sh
-[ "$with_github_events" = 0 ] || bin/dev/github-events-setup.sh
+# a failed deploy or webhook update does not undo the install above
+[ "$with_github_events" = 0 ] || bin/dev/github-events-setup.sh || echo "github-events-setup failed: run it again when wrangler and gh are logged in" >&2
 
 echo "ok: $(node -e "console.log(Object.keys(require('./package.json').bin).length)") commands linked into $gbin"
