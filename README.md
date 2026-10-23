@@ -358,9 +358,9 @@ upscale ./animation-frames              # 2x every image -> animation-frames@2x/
 Tiles a text watermark over images and videos, detected from the file extension. Without an input it processes every image and video in the current folder.
 
 ```
-watermark --text "legacy-site.example"                        # every image/video in the current folder
-watermark --text "legacy-site.example" ./photo.jpg ./clip.mp4
-watermark --text "legacy-site.example" --rotation -45 --color '#4FB3E8' ./folder --recursive
+watermark --text "example.com"                        # every image/video in the current folder
+watermark --text "example.com" ./photo.jpg ./clip.mp4
+watermark --text "example.com" --rotation -45 --color '#4FB3E8' ./folder --recursive
 ```
 
 | Flag | Required | Value | Description |
