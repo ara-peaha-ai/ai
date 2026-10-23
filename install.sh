@@ -31,7 +31,7 @@ npm link --no-audit --no-fund
 
 # Drop global command links left dangling by renamed/removed commands
 gbin="$(npm prefix -g)/bin"
-find "$gbin" -maxdepth 1 -xtype l -lname '*ai-cli/bin/*' -print -delete | sed 's#^#removed stale link: #'
+find "$gbin" -maxdepth 1 -xtype l -lname '*/ai/bin/*' -print -delete | sed 's#^#removed stale link: #'
 
 # Re-run this script after every `git pull` that changes the command list
 git config core.hooksPath .githooks
