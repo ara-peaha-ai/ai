@@ -527,7 +527,7 @@ Deploys the `github-events` Cloudflare Worker (`workers/github-events/`) and poi
 
 ```
 github-events-setup                      # your user + the orgs you admin (first run), then the saved ones
-github-events-setup ara-peaha-ai fantasia-lat learntheropes
+github-events-setup my-org another-org my-user
 ```
 
 - Org: one org webhook. User account: one webhook per own repo, forks and archived ones skipped (GitHub has no user-level webhook), so re-run it after creating a repo.
