@@ -3,6 +3,7 @@
 // `ats` scores a CV against a job description; `local` runs the CPU tools of this repo. Every name accepts its shortest unique prefix (c, g, d, l, u, ...).
 // v0 of the AI router: the target is picked by hand; routing decisions move to Laya later.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const util = require('util');
 const { spawn } = require('child_process');
@@ -58,8 +59,8 @@ const pick = (query, names) => {
 };
 
 // Child exit code and signal become ours, so the shell sees what the tool did
-const run = (cmd, args) => {
-  const child = spawn(cmd, args, { stdio: 'inherit' });
+const run = (cmd, args, cwd) => {
+  const child = spawn(cmd, args, { stdio: 'inherit', cwd });
   child.on('error', (err) => fail(`cannot start ${cmd}: ${err.message}`));
   child.on('exit', (code, signal) => (signal ? process.kill(process.pid, signal) : process.exit(code)));
 };
@@ -207,7 +208,10 @@ const main = async () => {
     return run(target, ['-p', prompt]);
   }
   const name = words.join(' ');
-  if (!name) return run(target, []);
+  // Same rule as gitchat.sh: a new claude chat started in ~ opens in the project folder;
+  // checked only for that case, and an unresolvable cwd or home just keeps the current folder
+  const inHome = () => { try { return fs.realpathSync(process.cwd()) === fs.realpathSync(os.homedir()) } catch { return false } };
+  if (!name) return run(target, [], target === 'claude' && inHome() ? (process.env.AI_CHAT_HOME || path.dirname(REPO)) : undefined);
   if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name]);
   // ponytail: grok cannot title a new chat from its CLI, so a name only resumes; new titled grok chats come when grok can
   return run('grok', ['-r', name]);
