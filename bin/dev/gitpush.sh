@@ -14,9 +14,12 @@ if [ ${#pools[@]} = 0 ]; then
 fi
 
 entries=()
+# dotglob: a repo named with a leading dot (.github) has its pool folder .gitpool/.github
+shopt -s dotglob
 for p in "${pools[@]}"; do
   for s in "$p"/*/*/script; do [ -e "$s" ] && entries+=("$(dirname "$s")"); done
 done
+shopt -u dotglob
 if [ -n "${1:-}" ]; then
   # <n>: the serial number the agent put in front of the entry id (<n>-<slug>)
   # The argument is quoted in the patterns: * ? [ in it match literally
