@@ -520,7 +520,8 @@ gitchat --ai claude --name email-verein
 | `--ai` | no | `claude` | assistant; only `claude` for now (grok has no session names) |
 | `--help` / `-h` | no | — | print usage and exit |
 
-- Looks the name up in `~/.claude/projects/<slug of the current path>/*.jsonl`: only the `custom-title` record line written by `claude -n`, never text quoted inside a transcript; the most recently modified matching session wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
+- Looks the name up in `~/.claude/projects/<slug of the current path>/*.jsonl`: only the `custom-title` record line written by `/rename`, never text quoted inside a transcript; the most recently modified matching session wins. Reads Claude Code's on-disk format, so a future change there can break the lookup.
+- A new session opens with `/rename <name>` as its first message (visible in the chat), not `claude -n`, which often left the session unnamed.
 - Names cannot contain `"` or `\`.
 - Sessions are per folder: if the name exists only in another folder, it says so and creates a new one here.
 
