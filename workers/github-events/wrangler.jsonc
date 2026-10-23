@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "github-events",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "EVENTS", "class_name": "Events" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Events"] }],
+  "observability": { "enabled": true }
+}
