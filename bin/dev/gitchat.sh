@@ -4,8 +4,8 @@
 # Usage:
 #   gitchat --name email-verein               -> claude (default)
 #   gitchat --ai claude --name email-verein
-# Started in ~ (desktop terminals), a new chat opens in the project folder instead
-# (AI_CHAT_HOME, default: the folder holding this repo), where project permissions load.
+# Started in ~ (desktop terminals), a name not found in ~ is resumed or created in the project
+# folder (AI_CHAT_HOME, default: the folder holding this repo), where project permissions load.
 
 set -euo pipefail
 
