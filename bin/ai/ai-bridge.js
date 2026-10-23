@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ai-bridge: HTTP door to the JSON-in/JSON-out `ai` commands, so callers that can only speak HTTP
-// (wisdom on Cloudflare Pages through a tunnel, or next to it on the VPS Docker network) reach them.
+// (os on Cloudflare Pages through a tunnel, or next to it on the VPS Docker network) reach them.
 // POST /<command> with a Bearer token: the body goes to `ai <command>` on stdin, its stdout comes back.
 const crypto = require('crypto');
 const fs = require('fs');
@@ -22,7 +22,7 @@ POST /<command> (${COMMANDS.join(', ')}) with "Authorization: Bearer $AI_CLI_TOK
 the body is piped to "ai <command>", 200 + its JSON stdout, or 502 + {"error"} when it fails.
 
 Env (shell, else ${path.join(REPO, '.env')}):
-  AI_CLI_TOKEN      required, shared with the callers (e.g. wisdom's NUXT_AI_CLI_TOKEN)
+  AI_CLI_TOKEN      required, shared with the callers (e.g. os's NUXT_AI_CLI_TOKEN)
   AI_BRIDGE_HOST    default: 127.0.0.1; set 0.0.0.0 explicitly inside a container
   AI_BRIDGE_PORT    default: 4011
   plus the keys of each command, read by "ai" itself`);
