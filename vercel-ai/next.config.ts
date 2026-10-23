@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   reactCompiler: true,
-  // The app lives inside the ai-cli repo, which has its own lockfile.
+  // The app lives inside the ai repo, which has its own lockfile.
   turbopack: { root: __dirname },
 };
 

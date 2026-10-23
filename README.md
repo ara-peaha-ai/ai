@@ -54,7 +54,7 @@ ai resume                             # reopen the chats a shutdown killed, see 
 - `ats` reads `{"cvMarkdown": "...", "jobDescription": "...", "language": "es-419"}` from stdin (`language` = BCP 47 tag of the report's free text, default `en-US`) and prints `{"score", "matchStatus", "missingHardSkills", "missingSoftSkills", "keywordDensityIssues", "formattingSuggestionsForPdf"}`. `matchStatus` (`excellent` >= 80, `good` >= 50, else `poor`) comes from the score, not from the model. Errors go to stderr with exit code 1. Model from `AI_ATS_MODEL` (default `anthropic/claude-sonnet-5.5`), routed by `bin/ai/router.js`: `deepseek-direct/<model>` and `nvidia/<model>` go straight to those APIs (`DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`), every other id through the Vercel AI Gateway (`AI_GATEWAY_API_KEY`). Keys from the shell, else from this repo's `.env` (only those keys). The CV and the job description are sent to that provider. Needs a model with JSON-schema structured outputs (the Gateway ones): the direct prefixes only get JSON mode, so their answer may fail the schema.
 
 ### `ai-bridge`
-HTTP door to the `ai` commands with a JSON stdin/stdout contract (today only `ats`), for callers that can only speak HTTP: wisdom on Cloudflare Pages through a Cloudflare Tunnel, or a container next to it on the VPS Docker network. Same code in both cases, only the URL the caller uses changes.
+HTTP door to the `ai` commands with a JSON stdin/stdout contract (today only `ats`), for callers that can only speak HTTP: os on Cloudflare Pages through a Cloudflare Tunnel, or a container next to it on the VPS Docker network. Same code in both cases, only the URL the caller uses changes.
 
 ```
 AI_CLI_TOKEN=... ai-bridge
@@ -511,9 +511,9 @@ Prints GitHub events as they happen, one JSON line each: pushes, PR opened/merge
 
 ```
 github-events                          # every repo, from now on
-github-events --repo ara-peaha-ai/wisdom
-github-events --repo ara-peaha-ai/wisdom --pr 52             # one PR (also check runs listing it)
-github-events --repo ara-peaha-ai/wisdom --ref refs/heads/main
+github-events --repo ara-peaha-ai/os
+github-events --repo ara-peaha-ai/os --pr 52             # one PR (also check runs listing it)
+github-events --repo ara-peaha-ai/os --ref refs/heads/main
 github-events --since 120              # replay what came after event 120, then live
 ```
 
@@ -705,7 +705,7 @@ translate-text --input "Good morning, how are you?" --output IT
 
 2. **Clone this repo and run the installer**:
    ```
-   git clone git@github.com:ara-peaha-ai/ai-cli.git
+   git clone git@github.com:ara-peaha-ai/ai.git
    cd ai-cli
    ./install.sh
    ```
