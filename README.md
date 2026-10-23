@@ -506,16 +506,19 @@ gitpush <repo>/<id>     # one entry by name
 - Refuses a script that is a symlink, not owned by you, or merges a PR (the agent merges from its session, per the prepare-gitpush skill).
 
 ### `github-events`
-Prints GitHub events as they happen, one JSON line each: pushes, PR opened/merged, reviews, review and issue comments, completed checks and workflow runs, commit statuses. Agents run it as a background monitor instead of polling GitHub. Events come from the `github-events` Worker (below), so the ones that arrive while the laptop is off are kept and replayed.
+Prints GitHub events as they happen, one JSON line each: pushes, PR opened/merged, reviews, review and issue comments, completed checks and workflow runs, commit statuses. Agents run it as a background monitor to wake up instead of polling GitHub; the line is a hint, the current state is still read with `gh`. Events come from the `github-events` Worker (below), which keeps them 30 days: without `--since` the output starts from now, `--since <seq>` replays what came after that event (for example while the laptop was off).
 
 ```
 github-events                          # every repo, from now on
 github-events --repo ara-peaha-ai/wisdom
+github-events --repo ara-peaha-ai/wisdom --pr 52             # one PR (also check runs listing it)
+github-events --repo ara-peaha-ai/wisdom --ref refs/heads/main
 github-events --since 120              # replay what came after event 120, then live
 ```
 
-- Line shape: `{"seq", "ts", "event", "action", "repo", "actor", ...}` plus per event `pr`, `sha`, `state`, `conclusion`, `name`, `ref`, `assoc` (author association), `text` (first 200 chars of the body).
-- Reconnects on its own every 5 s and resumes from the last event it printed.
+- Line shape: `{"seq", "ts", "event", "action", "repo", "actor", ...}` (`action` empty for push and status) plus per event `pr` (PR comment) or `issue` (issue comment), `prs` (check run), `sha`, `state`, `conclusion`, `name`, `ref`, `created` / `deleted` / `forced` (push; no `sha` on a delete), `assoc` (author association), `text` (first 200 chars, whitespace collapsed).
+- `--repo` is case-insensitive; `--pr` and `--ref` are exact.
+- Reconnects on its own every 5 s and resumes from the last event it got; a replay longer than 500 events continues on its own. Exits 1 when it never connects (missing config, wrong token, Worker down), with the reason on stderr.
 - Reads `~/.peaha/github-events.env`, written by `github-events-setup`.
 
 ### `github-events-setup`
@@ -528,8 +531,8 @@ github-events-setup ara-peaha-ai fantasia-lat learntheropes
 
 - Org: one org webhook. User account: one webhook per own repo, forks and archived ones skipped (GitHub has no user-level webhook), so re-run it after creating a repo.
 - Needs `wrangler` logged in (`CLOUDFLARE_ACCOUNT_ID` when the login has several accounts) and `gh` with the `admin:org_hook` scope: `gh auth refresh -s admin:org_hook`.
-- Worker: `POST /webhook` checks the `X-Hub-Signature-256` HMAC, keeps the event 30 days in a Durable Object (SQLite); `GET /ws` streams them over a WebSocket, auth by the `v1, <CLIENT_TOKEN>` subprotocols, `?repo=` and `?since=` as above. Check: `wrangler dev --port 8799 --var WEBHOOK_SECRET:testsecret --var CLIENT_TOKEN:testtoken`, then `node workers/github-events/check.mjs`.
-- `./install.sh --with-github-events` runs it on a new machine; after that every `./install.sh` re-deploys it on its own.
+- Worker: `POST /webhook` checks the `X-Hub-Signature-256` HMAC, drops redeliveries of the same `X-GitHub-Delivery`, keeps the event 30 days in a Durable Object (SQLite); `GET /ws` streams them over a WebSocket, auth by the `v1, <CLIENT_TOKEN>` subprotocols, `?repo=` and `?since=` as above. Without its secrets it refuses every request. Check: `npx wrangler@4.75.0 dev --port 8799 --var WEBHOOK_SECRET:testsecret --var CLIENT_TOKEN:testtoken` in `workers/github-events/`, then `node workers/github-events/check.mjs`.
+- `./install.sh --with-github-events` runs it on a new machine; after that every `./install.sh` re-deploys it on its own. A failed deploy or webhook update prints an error and leaves the rest of the install in place.
 - Secrets in `~/.peaha/github-events.env` (mode 600). Second machine of the same person: copy that file there first, else the setup makes new secrets and the first machine stops receiving.
 
 ### `gitchat`
