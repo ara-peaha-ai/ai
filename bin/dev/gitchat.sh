@@ -26,7 +26,7 @@ case "$name" in *\"*|*\\*) echo "--name cannot contain \" or \\" >&2; exit 1 ;; 
 [ "$ai" = claude ] || { echo "Only --ai claude is supported for now" >&2; exit 1; }
 
 # ponytail: reads Claude Code's on-disk session format (projects/<cwd slug>/<id>.jsonl, one
-# {"type":"custom-title","customTitle":...} record per line); breaks if Claude Code changes it
+# {"type":"custom-title","customTitle":...} record per line, written by /rename); breaks if Claude Code changes it
 shopt -u nullglob failglob
 projects="$HOME/.claude/projects"
 record="{\"type\":\"custom-title\",\"customTitle\":\"$name\","
@@ -47,4 +47,5 @@ if [ -n "$other" ]; then
   echo "Note: \"$name\" exists in another folder: $(grep -o '"cwd":"[^"]*"' "$other" | head -1 | cut -d'"' -f4)"
 fi
 echo "New session \"$name\" in $(pwd)"
-exec claude -n "$name"
+# ponytail: /rename as the first message, once the chat is open: the hidden `claude -n` failed about half the time
+exec claude "/rename $name"
