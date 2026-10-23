@@ -3,17 +3,22 @@
 #   ./install.sh               npm deps, global commands (npm link), shell aliases, auto-update hook
 #   ./install.sh --with-face   also build the enhance-face stack (~2 GB, CPU torch + GFPGAN weights)
 #   ./install.sh --with-bg-video   also build the remove-bg-video stack (~1 GB, CPU torch + RVM weights)
+#   ./install.sh --with-github-events   deploy the github-events Worker + webhooks (real-time GitHub events
+#                  for agents); after the first time every run re-deploys it on its own
 # System tools the commands shell out to (ffmpeg, imagemagick, qrencode, jq, gallery-dl) are
 # listed in README.md; this script does not apt-install them.
 set -euo pipefail
 
 with_face=0
 with_bg_video=0
+with_github_events=0
+[ -f "$HOME/.peaha/github-events.env" ] && with_github_events=1
 for arg in "$@"; do
   case "$arg" in
     --with-face) with_face=1 ;;
     --with-bg-video) with_bg_video=1 ;;
-    -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --with-github-events) with_github_events=1 ;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
@@ -54,5 +59,7 @@ rm -f -- "$tmp"
 
 [ "$with_face" = 0 ] || bin/ai/enhance-face-setup.sh
 [ "$with_bg_video" = 0 ] || bin/ai/remove-bg-video-setup.sh
+# a failed deploy or webhook update does not undo the install above
+[ "$with_github_events" = 0 ] || bin/dev/github-events-setup.sh || echo "github-events-setup failed: run it again when wrangler and gh are logged in" >&2
 
 echo "ok: $(node -e "console.log(Object.keys(require('./package.json').bin).length)") commands linked into $gbin"
