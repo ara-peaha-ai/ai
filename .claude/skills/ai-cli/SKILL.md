@@ -5,7 +5,7 @@ description: Design rules of the `ai` command of ai-cli — `ai <tool> <chat nam
 
 # ai-cli: the `ai` command
 
-The shape is fixed: `ai <tool> <chat name | command>`.
+The shape is fixed: `ai <tool> [--workspace <folder>] [<chat name> | -p <prompt>]`, or `ai local <command>`.
 
 | Position | What | Rule |
 |---|---|---|
@@ -24,7 +24,7 @@ The shape is fixed: `ai <tool> <chat name | command>`.
 ## Chats
 
 - `claude`: `gitchat --name` (resume by session title in this folder, else new titled session; started in `~`, a name not found in `~` is resumed or created in `AI_CHAT_HOME`, default the folder holding ai-cli).
-- `--workspace <folder>` (any unique prefix, value too): run claude or grok in that workspace, a folder next to the one holding ai-cli.
+- `--workspace <folder>` (any unique prefix, value too): run claude or grok in that workspace, the folder holding ai-cli or one next to it; it replaces both the current folder and the `~` → `AI_CHAT_HOME` rule.
 - `grok`: `grok -r <title>` (resume only: grok's CLI cannot title a new chat).
 - A new AI tool joins with: a chat path (name → open/resume), a `-p` path, and a usage line. If it cannot keep named chats, say so in the usage and fall back to prompt only, like `deepseek`.
 

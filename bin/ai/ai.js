@@ -29,7 +29,7 @@ Tools (full name or any unique prefix):
              "ai l" alone lists them; "ai l <command> --help" for each one
   resume     reopen the chats a shutdown or crash killed, one terminal tab each; "ai r --help"
 
-Flags (claude and grok), before the chat name, long only and any unique prefix like the names:
+Flags (claude and grok), before the chat name, long only and any unique prefix like the names; -p last:
   --workspace <folder>   run in that workspace, a folder of ${path.dirname(path.dirname(REPO))},
                          itself any unique prefix: "ai c --w fan <name>" runs in fantasia_lat
   --prompt, -p           headless; -p and -h stay because claude and grok use them
@@ -63,11 +63,12 @@ const pick = (query, names) => {
   return null;
 };
 
-// Workspaces = the folders next to the one holding this repo (peaha_ai, fantasia_lat, ...)
+// Workspaces = the folder holding this repo (peaha_ai) and every folder next to it (fantasia_lat, ...)
 const workspace = (query) => {
   const parent = path.dirname(path.dirname(REPO));
-  const names = fs.readdirSync(parent, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => d.name);
+  // statSync follows symlinks, so a linked workspace counts too
+  const isDir = (n) => { try { return fs.statSync(path.join(parent, n)).isDirectory() } catch { return false } };
+  const names = fs.readdirSync(parent).filter((n) => !n.startsWith('.') && isDir(n));
   if (!query) fail(`--workspace needs one of: ${names.join(', ')}`);
   const name = pick(query, names);
   if (!name) process.exit(1);
@@ -215,13 +216,18 @@ const main = async () => {
     process.exit(0);
   }
   if (target === 'ats') return runAts();
-  // leading flags, long names by unique prefix (--w, --p); the first other word starts the name or prompt
+  // leading flags, long names by unique prefix (--w, --p); -p comes last, everything after it is the prompt;
+  // the first word not starting with -- starts the name or prompt
   let ws;
   let prompt = false;
   let words = rest;
   while (words[0]?.startsWith('-') && !prompt) {
     const [flag, ...more] = words;
-    const long = flag === '-p' ? 'prompt' : flag.startsWith('--') && pick(flag.slice(2), ['workspace', 'prompt']);
+    if (flag !== '-p' && !flag.startsWith('--')) {
+      if (/^-[a-z]$/i.test(flag)) fail(`no one-letter flag ${flag}: only -p and -h, else --workspace / --prompt`);
+      break;
+    }
+    const long = flag === '-p' ? 'prompt' : pick(flag.slice(2), ['workspace', 'prompt']);
     if (!long) process.exit(1);
     if (long === 'prompt') prompt = true;
     else if (target === 'deepseek') fail('--workspace is for claude and grok');
