@@ -519,8 +519,20 @@ github-events --since 120              # replay what came after event 120, then 
 
 - Line shape: `{"seq", "ts", "event", "action", "repo", "actor", ...}` (`action` empty for push and status) plus per event `pr` (PR comment) or `issue` (issue comment), `prs` (check run), `sha`, `state`, `conclusion`, `name`, `ref`, `created` / `deleted` / `forced` (push; no `sha` on a delete), `assoc` (author association), `text` (first 200 chars, whitespace collapsed).
 - `--repo` is case-insensitive; `--pr` and `--ref` are exact.
+- `--once` exits 0 after the first matching push that is not a branch delete (a background wait that ends when the push lands; the caller still runs its own landed check); `--tip` prints the last stored event seq and exits (a `--since` starting point).
 - Reconnects on its own every 5 s and resumes from the last event it got; a replay longer than 500 events continues on its own. Exits 1 when it never connects (missing config, wrong token, Worker down), with the reason on stderr.
 - Reads `~/.peaha/github-events.env`, written by `github-events-setup`.
+
+### `gitpool-landed`
+Says which agent-prepared pushes have landed, even days after they were prepared. For each gitpool entry it prepares, the agent writes `~/.peaha/gitpool-watch/<entry id>.watch` (`repo=`, `branch=`, `subject=`, `started=` lines) and deletes it once it has handled the landed push.
+
+```
+gitpool-landed           # every record: landed, pending, unknown (fetch failed), invalid or missing repo
+gitpool-landed --hook    # landed ones only, silent when none
+```
+
+- `install.sh` registers `gitpool-landed --hook` as a Claude Code `SessionStart` hook, so a new session starts knowing what landed while no session was watching. The hook lists only records of repos inside the session folder (or holding it), prints id, repo and branch only (never the commit subject), and caps its fetches at about 20 s.
+- Landed = after a successful fetch, the commit subject is among the last 50 commits of `origin/<branch>` made after `started`, the same check the agent's watcher uses. A branch name `git check-ref-format --branch` rejects is never fetched.
 
 ### `github-events-setup`
 Deploys the `github-events` Cloudflare Worker (`workers/github-events/`) and points GitHub webhooks at it. Safe to re-run: it keeps the secrets and updates the webhooks it created.
@@ -764,7 +776,10 @@ translate-text --input "Good morning, how are you?" --output IT
 1. runs `npm install` and `npm link`, which registers every entry of `bin` in `package.json` as a global command (bash and Python scripts included, not only Node);
 2. removes global command links left dangling by renamed or removed commands;
 3. sets `git config core.hooksPath .githooks`, so after every `git pull` that changes `package.json`, `package-lock.json` or `install.sh`, the `post-merge` hook re-runs `./install.sh` by itself;
-4. adds one line to `~/.bashrc` that sources [`shell/aliases.sh`](#shell-aliases) (only once).
+4. adds one line to `~/.bashrc` that sources [`shell/aliases.sh`](#shell-aliases) (only once);
+5. registers the Claude Code hooks: `ai-resume` (open chats) and `gitpool-landed --hook` (pushes that landed while no session was watching);
+6. when the `os` repo sits next to `ai` in the project folder, runs its `scripts/link-skills.sh` (framework skills into `~/.claude/skills`) and `scripts/link-project-settings.mjs <project>` (agent permissions into `<project>/.claude/settings.json`), so one install covers both repos;
+7. with `--with-github-events`, or when `~/.peaha/github-events.env` already exists, deploys the `github-events` Worker and webhooks (see [`github-events-setup`](#github-events-setup)).
 
 Edits to an existing script need nothing: the global commands are symlinks into this repo, so the change is live right away. A **new** command needs an entry in `bin` in `package.json`; the hook (or `./install.sh`) picks it up.
 
@@ -818,7 +833,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # ai-resume, gitchat, gitpush, github-events, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # ai-resume, gitchat, gitpush, gitpool-landed, github-events, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr, translate-text
 ├── workers/github-events/          # Cloudflare Worker behind github-events
 ├── package.json                    # `bin`: command name -> script, read by npm link

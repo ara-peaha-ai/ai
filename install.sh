@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Install or update every ai-cli command on this machine. Safe to re-run.
-#   ./install.sh               npm deps, global commands (npm link), shell aliases, auto-update hook
+#   ./install.sh               npm deps, global commands (npm link), shell aliases, auto-update hook,
+#                              Claude Code hooks, and (when os sits next to ai) the os framework skills
+#                              and agent permissions of the project folder
 #   ./install.sh --with-face   also build the enhance-face stack (~2 GB, CPU torch + GFPGAN weights)
 #   ./install.sh --with-bg-video   also build the remove-bg-video stack (~1 GB, CPU torch + RVM weights)
 #   ./install.sh --with-github-events   deploy the github-events Worker + webhooks (real-time GitHub events
@@ -18,7 +20,7 @@ for arg in "$@"; do
     --with-face) with_face=1 ;;
     --with-bg-video) with_bg_video=1 ;;
     --with-github-events) with_github_events=1 ;;
-    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown flag: $arg" >&2; exit 1 ;;
   esac
 done
@@ -53,6 +55,12 @@ jq --arg cmd "$repo/bin/dev/ai-resume.sh" '
     | map(if .hooks then .hooks |= map(select(mine | not)) else . end | select(.hooks != []))
     + [{hooks: [{type: "command", command: (($cmd | @sh) + " " + flag)}]}]);
   put("SessionStart"; "--register") | put("SessionEnd"; "--unregister")' "$settings" > "$tmp"
+# and the hook that tells a new session which agent-prepared pushes landed meanwhile (gitpool-landed)
+jq --arg cmd "$repo/bin/dev/gitpool-landed.sh" '
+  def mine: (.command // "" | tostring) | test("/bin/dev/gitpool-landed\\.sh'"'"'? --hook$");
+  .hooks.SessionStart = ((.hooks.SessionStart // [])
+    | map(if .hooks then .hooks |= map(select(mine | not)) else . end | select(.hooks != []))
+    + [{hooks: [{type: "command", command: (($cmd | @sh) + " --hook")}]}])' "$tmp" > "$tmp.2" && mv -- "$tmp.2" "$tmp"
 # Rewrite in place: keeps the file's mode, owner and symlink
 cat "$tmp" > "$settings"
 rm -f -- "$tmp"
@@ -61,5 +69,13 @@ rm -f -- "$tmp"
 [ "$with_bg_video" = 0 ] || bin/ai/remove-bg-video-setup.sh
 # a failed deploy or webhook update does not undo the install above
 [ "$with_github_events" = 0 ] || bin/dev/github-events-setup.sh || echo "github-events-setup failed: run it again when wrangler and gh are logged in" >&2
+
+# The os repo next to this one: framework skills into the user skills dir, agent permissions into
+# <project>/.claude/settings.json (the folder holding every clone); one install for both repos
+project="$(dirname "$repo")"
+if [ -x "$project/os/scripts/link-skills.sh" ]; then
+  "$project/os/scripts/link-skills.sh" | grep -v '^ok ' || true
+  node "$project/os/scripts/link-project-settings.mjs" "$project" | grep -v '^ok ' || true
+else echo "skills and project permissions not linked: no os repo next to ai ($project/os)"; fi
 
 echo "ok: $(node -e "console.log(Object.keys(require('./package.json').bin).length)") commands linked into $gbin"
