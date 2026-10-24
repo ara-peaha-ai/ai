@@ -11,8 +11,8 @@ const { spawn } = require('child_process');
 const REPO = path.join(__dirname, '..', '..');
 const HELP = ['-h', '--help'];
 
-const usage = `Usage: ai <tool> [chat name...]
-       ai <tool> -p <prompt...>
+const usage = `Usage: ai <tool> [--workspace <folder>] [chat name...]
+       ai <tool> [--workspace <folder>] -p <prompt...>
        ai ats < input.json
        ai local <command> [args...]
 
@@ -28,6 +28,11 @@ Tools (full name or any unique prefix):
   local      the CPU tools of this repo, e.g. "ai l u photo.jpg" = upscale
              "ai l" alone lists them; "ai l <command> --help" for each one
   resume     reopen the chats a shutdown or crash killed, one terminal tab each; "ai r --help"
+
+Flags (claude and grok), before the chat name, long only and any unique prefix like the names:
+  --workspace <folder>   run in that workspace, a folder of ${path.dirname(path.dirname(REPO))},
+                         itself any unique prefix: "ai c --w fan <name>" runs in fantasia_lat
+  --prompt, -p           headless; -p and -h stay because claude and grok use them
 
 Piped stdin reaches the headless calls: git diff | ai c -p "review this"
 
@@ -56,6 +61,17 @@ const pick = (query, names) => {
     ? `ai: "${query}" is ambiguous: ${found.join(', ')}`
     : `ai: unknown "${query}", one of: ${names.join(', ')}`);
   return null;
+};
+
+// Workspaces = the folders next to the one holding this repo (peaha_ai, fantasia_lat, ...)
+const workspace = (query) => {
+  const parent = path.dirname(path.dirname(REPO));
+  const names = fs.readdirSync(parent, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith('.')).map((d) => d.name);
+  if (!query) fail(`--workspace needs one of: ${names.join(', ')}`);
+  const name = pick(query, names);
+  if (!name) process.exit(1);
+  return path.join(parent, name);
 };
 
 // Child exit code and signal become ours, so the shell sees what the tool did
@@ -199,22 +215,33 @@ const main = async () => {
     process.exit(0);
   }
   if (target === 'ats') return runAts();
-  const headless = rest[0] === '-p' || target === 'deepseek';
-  const words = rest[0] === '-p' ? rest.slice(1) : rest;
-  if (headless) {
-    const prompt = words.join(' ');
-    if (!prompt) fail(`missing prompt\n\n${usage}`);
-    if (target === 'deepseek') return runDeepSeek(prompt);
-    return run(target, ['-p', prompt]);
+  // leading flags, long names by unique prefix (--w, --p); the first other word starts the name or prompt
+  let ws;
+  let prompt = false;
+  let words = rest;
+  while (words[0]?.startsWith('-') && !prompt) {
+    const [flag, ...more] = words;
+    const long = flag === '-p' ? 'prompt' : flag.startsWith('--') && pick(flag.slice(2), ['workspace', 'prompt']);
+    if (!long) process.exit(1);
+    if (long === 'prompt') prompt = true;
+    else if (target === 'deepseek') fail('--workspace is for claude and grok');
+    else { ws = workspace(more[0]); more.shift(); }
+    words = more;
+  }
+  if (prompt || target === 'deepseek') {
+    const text = words.join(' ');
+    if (!text) fail(`missing prompt\n\n${usage}`);
+    if (target === 'deepseek') return runDeepSeek(text);
+    return run(target, ['-p', text], ws);
   }
   const name = words.join(' ');
   // Same rule as gitchat.sh: a new claude chat started in ~ opens in the project folder;
   // checked only for that case, and an unresolvable cwd or home just keeps the current folder
   const inHome = () => { try { return fs.realpathSync(process.cwd()) === fs.realpathSync(os.homedir()) } catch { return false } };
-  if (!name) return run(target, [], target === 'claude' && inHome() ? (process.env.AI_CHAT_HOME || path.dirname(REPO)) : undefined);
-  if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name]);
+  if (!name) return run(target, [], ws || (target === 'claude' && inHome() ? (process.env.AI_CHAT_HOME || path.dirname(REPO)) : undefined));
+  if (target === 'claude') return run(path.join(REPO, 'bin', 'dev', 'gitchat.sh'), ['--name', name], ws);
   // ponytail: grok cannot title a new chat from its CLI, so a name only resumes; new titled grok chats come when grok can
-  return run('grok', ['-r', name]);
+  return run('grok', ['-r', name], ws);
 };
 
 main().catch((err) => fail(err.message || String(err)));

@@ -18,11 +18,13 @@ The shape is fixed: `ai <tool> <chat name | command>`.
 - Every tool and every local command is reachable by its **shortest unique prefix**: today `c`, `g`, `d`, `l`; when two names share a start, the prefix grows until it is unique (`ab...` / `ac...` take `ab` / `ac`).
 - An exact name always wins over a longer one with the same start.
 - Ambiguous or unknown prefixes print the candidates and exit 1; never guess.
+- Flags follow the same rule: long names only, any unique prefix (`--w` = `--workspace`). No new one-letter flags; `-p` and `-h` stay only because claude, grok and every CLI use them.
 - Adding a tool or command: check that it does not steal the one-letter prefix of an existing tool (`c`, `g`, `d`, `l`); if it would, rename it.
 
 ## Chats
 
 - `claude`: `gitchat --name` (resume by session title in this folder, else new titled session; started in `~`, a name not found in `~` is resumed or created in `AI_CHAT_HOME`, default the folder holding ai-cli).
+- `--workspace <folder>` (any unique prefix, value too): run claude or grok in that workspace, a folder next to the one holding ai-cli.
 - `grok`: `grok -r <title>` (resume only: grok's CLI cannot title a new chat).
 - A new AI tool joins with: a chat path (name → open/resume), a `-p` path, and a usage line. If it cannot keep named chats, say so in the usage and fall back to prompt only, like `deepseek`.
 
