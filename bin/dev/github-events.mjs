@@ -2,7 +2,8 @@
 // Prints the github-events Worker's events, one JSON line each, as they happen.
 //   github-events [--repo <owner/name>] [--pr <n>] [--ref <refs/heads/branch>] [--since <seq>] [--once]
 //   github-events --tip        print the last stored event seq and exit (a --since starting point)
-// --once exits 0 after the first printed event: a background command that ends when the event lands.
+// --once exits 0 after the first matching push that is not a branch delete: a background command
+// that ends when the push lands. The caller still runs its own landed check on exit.
 // --pr / --ref are exact matches (--pr also matches a check_run listing that PR).
 // Reconnects on its own and resumes from the last event it got; exits 1 when it never gets
 // connected (bad config, token or Worker down), so a caller can fall back to polling.
@@ -33,6 +34,8 @@ let since = opt('--since')
 const once = args.includes('--once')
 const tip = args.includes('--tip')
 const wanted = ev => (!pr || ev.pr === pr || ev.prs?.includes(pr)) && (!ref || ev.ref === ref)
+  // --once waits for a landing: only a push that adds commits ends it, never a branch delete
+  && (!once || (ev.event === 'push' && ev.deleted !== true))
 
 let connected = false
 let failures = 0
@@ -44,15 +47,16 @@ const connect = () => {
     try { ev = JSON.parse(e.data) } catch { return console.error('github-events: bad frame skipped') }
     // hello carries the last stored seq: resume point when no --since was given
     if (ev.hello) {
-      if (tip) { console.log(ev.seq); process.exit(0) }
+      // exit only once the line is written: a plain exit can drop it on a pipe
+      if (tip) { process.stdout.write(`${ev.seq}\n`, () => process.exit(0)); return }
       connected = true; failures = 0; since ??= String(ev.seq); return
     }
     // replay cut by the Worker: reconnect at once from the last seq for the rest
     if (ev.truncated) { ws.onclose = ws.onerror = null; ws.close(); connect(); return }
     since = String(ev.seq)
     if (wanted(ev)) {
+      if (once) { ws.onclose = ws.onerror = null; process.stdout.write(`${e.data}\n`, () => process.exit(0)); return }
       console.log(e.data)
-      if (once) process.exit(0)
     }
   }
   // a refused handshake fires only `error` in Node, a dropped socket `close`: retry once per socket
