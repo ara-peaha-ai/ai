@@ -40,6 +40,7 @@
     "gitpush": "./bin/dev/gitpush.sh",
     "github-events": "./bin/dev/github-events.mjs",
     "github-events-setup": "./bin/dev/github-events-setup.sh",
+    "gitpool-landed": "./bin/dev/gitpool-landed.sh",
     "repo-join-branches": "./bin/dev/repo-join-branches.sh",
     "repo-split-branches": "./bin/dev/repo-split-branches.sh",
     "search-string": "./bin/dev/search-string.js",

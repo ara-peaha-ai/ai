@@ -53,6 +53,12 @@ jq --arg cmd "$repo/bin/dev/ai-resume.sh" '
     | map(if .hooks then .hooks |= map(select(mine | not)) else . end | select(.hooks != []))
     + [{hooks: [{type: "command", command: (($cmd | @sh) + " " + flag)}]}]);
   put("SessionStart"; "--register") | put("SessionEnd"; "--unregister")' "$settings" > "$tmp"
+# and the hook that tells a new session which agent-prepared pushes landed meanwhile (gitpool-landed)
+jq --arg cmd "$repo/bin/dev/gitpool-landed.sh" '
+  def mine: (.command // "" | tostring) | test("/bin/dev/gitpool-landed\\.sh'"'"'? --hook$");
+  .hooks.SessionStart = ((.hooks.SessionStart // [])
+    | map(if .hooks then .hooks |= map(select(mine | not)) else . end | select(.hooks != []))
+    + [{hooks: [{type: "command", command: (($cmd | @sh) + " --hook")}]}])' "$tmp" > "$tmp.2" && mv -- "$tmp.2" "$tmp"
 # Rewrite in place: keeps the file's mode, owner and symlink
 cat "$tmp" > "$settings"
 rm -f -- "$tmp"

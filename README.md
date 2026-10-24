@@ -519,8 +519,20 @@ github-events --since 120              # replay what came after event 120, then 
 
 - Line shape: `{"seq", "ts", "event", "action", "repo", "actor", ...}` (`action` empty for push and status) plus per event `pr` (PR comment) or `issue` (issue comment), `prs` (check run), `sha`, `state`, `conclusion`, `name`, `ref`, `created` / `deleted` / `forced` (push; no `sha` on a delete), `assoc` (author association), `text` (first 200 chars, whitespace collapsed).
 - `--repo` is case-insensitive; `--pr` and `--ref` are exact.
+- `--once` exits 0 after the first printed event (a background wait that ends when the event lands); `--tip` prints the last stored event seq and exits (a `--since` starting point).
 - Reconnects on its own every 5 s and resumes from the last event it got; a replay longer than 500 events continues on its own. Exits 1 when it never connects (missing config, wrong token, Worker down), with the reason on stderr.
 - Reads `~/.peaha/github-events.env`, written by `github-events-setup`.
+
+### `gitpool-landed`
+Says which agent-prepared pushes have landed, even days after they were prepared. For each gitpool entry it prepares, the agent writes `~/.peaha/gitpool-watch/<entry id>.watch` (`repo=`, `branch=`, `subject=` lines) and deletes it once it has handled the landed push.
+
+```
+gitpool-landed           # every record: landed, pending, or missing repo
+gitpool-landed --hook    # landed ones only, silent when none
+```
+
+- `install.sh` registers `gitpool-landed --hook` as a Claude Code `SessionStart` hook, so a new session starts knowing what landed while no session was watching.
+- Landed = the commit subject is on `origin/<branch>` (after a fetch), the same check the agent's watcher uses.
 
 ### `github-events-setup`
 Deploys the `github-events` Cloudflare Worker (`workers/github-events/`) and points GitHub webhooks at it. Safe to re-run: it keeps the secrets and updates the webhooks it created.
@@ -818,7 +830,7 @@ ai-cli/
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
 │   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
-│   ├── dev/                        # ai-resume, gitchat, gitpush, github-events, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
+│   ├── dev/                        # ai-resume, gitchat, gitpush, gitpool-landed, github-events, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr, translate-text
 ├── workers/github-events/          # Cloudflare Worker behind github-events
 ├── package.json                    # `bin`: command name -> script, read by npm link
