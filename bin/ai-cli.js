@@ -43,6 +43,7 @@ const AREAS = [
     ['upscale', 'Resample an image (or a folder of images) up by an integer factor'],
     ['watermark', 'Tile a text watermark over images and videos (a file, a folder or the current folder)'],
     ['text-overlay', 'Draw a line of text over an image or a video'],
+    ['aspect-ratio', 'Crop an image or a video to 16:9, 9:16, 4:3, 3:4, 1:1 or any x:y'],
     ['get-first-frame', 'Extract the first frame of a video as a JPEG'],
     ['get-last-frame', 'Extract the last frame of a video as a JPEG'],
     ['blur-video', 'Blur a video from a given second to the end'],

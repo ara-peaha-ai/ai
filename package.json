@@ -30,6 +30,7 @@
     "heic-to-jpg": "./bin/media/heic-to-jpg.js",
     "image-to-jpg": "./bin/media/image-to-jpg.js",
     "text-overlay": "./bin/media/text-overlay.js",
+    "aspect-ratio": "./bin/media/aspect-ratio.js",
     "upscale": "./bin/media/upscale.js",
     "watermark": "./bin/media/watermark.js",
     "slideshow": "./bin/media/slideshow.js",

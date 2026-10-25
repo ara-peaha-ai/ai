@@ -407,6 +407,29 @@ text-overlay --text "hello" --position bottom --start 0 --end 3 ./input.mp4
 - Images: `ffmpeg -i in -vf drawtext=... -q:v 2 out` (single frame, quality preserved). Videos: adds `enable='between(t,start,end)'`, re-encodes `libx264 -crf 18`, drops audio (`-an`).
 - Output: saved next to the input file as `<input-name>-overlay.<ext>`.
 
+### `aspect-ratio`
+Crops an image or a video to an aspect ratio: the classic `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, or any `x:y`. Keeps the largest centered area, no scaling, no black bars.
+
+```
+aspect-ratio --ratio 9:16 ./clip.vid.mp4    # -> clip.vid.9_16.mp4
+aspect-ratio --ratio 1:1 ./photo.jpg        # -> photo.1_1.jpg
+aspect-ratio --ratio 21:9 ./clip.mov        # -> clip.21_9.mov
+```
+
+| Flag | Required | Value | Description |
+|---|---|---|---|
+| `<input>` | yes | image or video file | positional argument, first non-flag arg |
+| `--ratio` | yes | `x:y` (integers 1-99999) | target aspect ratio |
+| `--help` / `-h` | no | — | print usage and exit |
+
+- Image or video is detected with `ffprobe` from the container, not the file name: a still image opens as the `image2` or a `*_pipe` demuxer (`png_pipe`, `jpeg_pipe`, `webp_pipe`, ...) or `jpeg_mpf` (multi-picture phone JPEG, first picture); a `.gif`/`.apng` is an image only with a single frame. A file with no video stream, or with only a cover picture (`.mp3`/`.m4a` artwork), is rejected, and so is a playlist (`hls`, `dash`, `concat`).
+- Exact ratio: crops `(x*k) by (y*k)` centered, `k = m * floor(min(w/x, h/y) / m)`, via `ffmpeg -vf "crop='x*k':'y*k'"`. On video `m = 2` when `x` or `y` is odd, so both sides stay even for yuv420 encoders (`1920x1080` → `9:16` = `594x1056`); on images `m = 1` with `exact=1`, so odd sides survive on 4:2:0 JPEGs too (`1001x777` → `1:1` = `777x777`).
+- Videos: re-encoded with ffmpeg's default encoder for the extension, audio copied (`-c:a copy`), rotation metadata applied before the crop. Images: single frame, `-q:v 2`; a `%` in the file name stays literal.
+- Input is read with `-protocol_whitelist file`, so a downloaded playlist-like file can't make ffmpeg fetch URLs.
+- Not handled: anamorphic video (non-square pixels, crop is in stored pixels) and HDR/10-bit sources (the default encode is 8-bit). `.heic`/`.avif`: convert first with `image-to-jpg --keep`.
+- Output: `<input-name>.<x>_<y>.<ext>` next to the input, overwritten if it exists.
+- `aspect-ratio --selftest` builds test videos and images in a temp folder and checks detection, crop sizes, `%` names, audio and output name.
+
 ### `get-first-frame`
 Extracts the first frame of a video as a JPEG.
 
@@ -807,7 +830,7 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### System requirements
 
-All commands support `--help` / `-h`. `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `remove-bg-video` needs Python 3.10–3.13 with `venv`, `curl`, `ffmpeg` + `ffprobe` with `libvpx-vp9` and `libopus` and ~1 GB of disk (`./install.sh --with-bg-video`). `wsname` needs `jq`; `ai-resume` needs `claude`, `jq` and `gnome-terminal`.
+All commands support `--help` / `-h`. `aspect-ratio` (also `ffprobe`), `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `remove-bg-video` needs Python 3.10–3.13 with `venv`, `curl`, `ffmpeg` + `ffprobe` with `libvpx-vp9` and `libopus` and ~1 GB of disk (`./install.sh --with-bg-video`). `wsname` needs `jq`; `ai-resume` needs `claude`, `jq` and `gnome-terminal`.
 
 ## Scraper status
 
@@ -834,7 +857,7 @@ ai-cli/
 │   │   ├── chrome-profile-chatgpt/ # persistent browser profile (ChatGPT login) — git-ignored
 │   │   └── chatgpt-cookies.json    # ChatGPT cookies for the browserless path — git-ignored
 │   ├── social/                     # instagram-*, tiktok-*, x-* downloaders
-│   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay, slideshow
+│   ├── media/                      # image conversion, upscale, watermarks, video frames/blur/overlay/aspect ratio, slideshow
 │   ├── dev/                        # ai-resume, gitchat, gitpush, gitpool-landed, github-events, workspace-check, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr, translate-text
 ├── workers/github-events/          # Cloudflare Worker behind github-events
