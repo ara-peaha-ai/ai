@@ -828,6 +828,39 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 | `killproton` | Force-kills ProtonVPN |
 | `killfolder` / `killnautilus` | Force-kills the file manager (Nautilus) |
 
+### Named desktop workspaces (optional, manual)
+
+One desktop workspace per project, with its name in the top bar. Not part of `install.sh`: desktop setups differ too much, so this is a by-hand step. Not to be confused with [`wsname`](#wsname), which names VS Code workspaces.
+
+**GNOME (X11 and Wayland)**
+
+1. Set the names; order = workspace 1, 2, 3:
+   ```
+   gsettings set org.gnome.desktop.wm.preferences workspace-names "['peaha_ai', 'lpy_lat', 'lat_slash']"
+   ```
+2. Install the official GNOME extensions package, then reload GNOME Shell (X11: `Alt+F2`, type `r`, Enter; Wayland: log out and back in):
+   ```
+   sudo apt install gnome-shell-extensions
+   ```
+3. Enable Workspace Indicator:
+   ```
+   gnome-extensions enable workspace-indicator@gnome-shell-extensions.gcampax.github.com
+   ```
+   On GNOME 42 the bar shows the workspace number; click it for the list of names. To show the name itself in the bar, use the **Space Bar** extension (Extension Manager → Browse) and disable Workspace Indicator.
+
+GNOME cannot show the names on the overview thumbnails.
+
+**Open a project's apps on its workspace (X11 only)**
+
+Needs `wmctrl` (`sudo apt install wmctrl`). Add to your own `~/.bashrc`, adapting paths and apps:
+
+```
+# gows <index> <dir>: switch to workspace <index> (0-based), open VS Code and a terminal there
+gows() { wmctrl -s "$1" && code "$2" && gnome-terminal --working-directory="$2"; }
+```
+
+e.g. `gows 0 ~/Documents/works/peaha_ai`. Wayland GNOME has no command-line way to switch workspaces; KDE (`qdbus`), Sway/i3 (`swaymsg`/`i3-msg`) and Hyprland (`hyprctl`) have their own; macOS needs a third-party tool such as AeroSpace.
+
 ### System requirements
 
 All commands support `--help` / `-h`. `aspect-ratio` (also `ffprobe`), `get-first-frame`, `get-last-frame`, `blur-video`, `text-overlay`, `watermark`, `slideshow`, and `webp-to-jpg`/`image-to-jpg` (for `.webp` input) additionally require `ffmpeg` on `PATH` (`sudo apt install ffmpeg`). `upscale`, `heic-to-jpg`, and `image-to-jpg` (for `.heic`/`.heif`/`.avif` input) require `convert` from ImageMagick on `PATH` (`sudo apt install imagemagick`) — built with HEIC support (check with `convert -list format | grep -i heic`; if missing, install `libheif-dev` before ImageMagick, or use a distro package that bundles it). `chatgpt-image` and `create-virtual-ambassador` require a Chromium-family browser on the machine **or** a browserless.io endpoint (`BROWSERLESS_API_KEY`) — see setup step 4. `watermark` and `slideshow` require the `sharp` npm dependency (installed via `npm install`, no system package needed); `slideshow --fill` also uses `onnxruntime-node` (CPU only: `.npmrc` skips its ~280 MB CUDA/TensorRT download) and fetches its two models (~20 MB) on first use. `redact-faces` requires Sightengine API credentials (flags or env vars, see above). `share-qr` requires `qrencode` on `PATH` (`sudo apt install qrencode`). `search-string` requires `find` and `grep` on `PATH` (present by default on Linux). The `instagram-*`, `tiktok-*` and `x-*` commands need `gallery-dl` (setup step 5). `repo-split-branches` / `repo-join-branches` need `git` with SSH access to GitHub. `enhance-face` needs Python 3 with `venv`, `curl` and ~2 GB of disk (`./install.sh --with-face`). `remove-bg-video` needs Python 3.10–3.13 with `venv`, `curl`, `ffmpeg` + `ffprobe` with `libvpx-vp9` and `libopus` and ~1 GB of disk (`./install.sh --with-bg-video`). `wsname` needs `jq`; `ai-resume` needs `claude`, `jq` and `gnome-terminal`.
