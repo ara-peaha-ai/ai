@@ -25,7 +25,7 @@ One entry point for the toolbox: `ai <tool> <chat name>` opens (or resumes) a na
 ```
 ai c test-name                        # claude chat "test-name" of this folder: resumed if it exists, else new
 ai c                                  # new unnamed claude chat
-ai c --w fan test-name                # claude chat "test-name" of the fantasia_lat workspace, from any folder
+ai c --w project-a test-name          # claude chat "test-name" of the project-a workspace, from any folder
 ai g test-name                        # resume the grok chat titled "test-name" in this folder
 ai c -p "summarize this repo"         # Claude Code, headless (claude -p)
 ai g -p "summarize this repo"         # Grok, headless (grok -p)
@@ -41,7 +41,7 @@ ai resume                             # reopen the chats a shutdown killed, see 
 |---|---|---|---|
 | `<tool>` | yes | `claude` / `grok` / `deepseek` / `ats` / `local` / `resume` | who runs it; `resume` passes its flags to [`ai-resume`](#ai-resume) |
 | `[chat name...]` | no | string | `claude` / `grok`: the chat to open or resume, the rest of the arguments joined with spaces; none = new unnamed chat |
-| `--workspace <folder>` | no | a workspace, any unique prefix | `claude` / `grok`: run in that workspace (the folder holding this repo or one next to it: `peaha_ai`, `fantasia_lat`, ...) instead of the current folder; shortest form `--w` |
+| `--workspace <folder>` | no | a workspace, any unique prefix | `claude` / `grok`: run in that workspace (the folder holding this repo or one next to it: `project-a`, `project-b`, ...) instead of the current folder; shortest form `--w` |
 | `-p` / `--prompt <prompt...>` | no | string | `claude` / `grok`: headless one-shot answer instead of a chat; `deepseek` always works this way, `-p` optional |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
 | `--help` / `-h` | no | — | print usage and exit; also `ai <tool> --help`, and `ai l --help` lists the local commands |
