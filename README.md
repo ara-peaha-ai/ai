@@ -25,7 +25,7 @@ One entry point for the toolbox: `ai <tool> <chat name>` opens (or resumes) a na
 ```
 ai c test-name                        # claude chat "test-name" of this folder: resumed if it exists, else new
 ai c                                  # new unnamed claude chat
-ai c --w project-a test-name          # claude chat "test-name" of the project-a workspace, from any folder
+ai c --w <workspace> test-name        # claude chat "test-name" of another workspace, from any folder
 ai g test-name                        # resume the grok chat titled "test-name" in this folder
 ai c -p "summarize this repo"         # Claude Code, headless (claude -p)
 ai g -p "summarize this repo"         # Grok, headless (grok -p)
@@ -41,7 +41,7 @@ ai resume                             # reopen the chats a shutdown killed, see 
 |---|---|---|---|
 | `<tool>` | yes | `claude` / `grok` / `deepseek` / `ats` / `local` / `resume` | who runs it; `resume` passes its flags to [`ai-resume`](#ai-resume) |
 | `[chat name...]` | no | string | `claude` / `grok`: the chat to open or resume, the rest of the arguments joined with spaces; none = new unnamed chat |
-| `--workspace <folder>` | no | a workspace, any unique prefix | `claude` / `grok`: run in that workspace (the folder holding this repo or one next to it: `project-a`, `project-b`, ...) instead of the current folder; shortest form `--w` |
+| `--workspace <folder>` | no | a workspace, any unique prefix | `claude` / `grok`: run in that workspace (the folder holding this repo or one next to it) instead of the current folder; shortest form `--w` |
 | `-p` / `--prompt <prompt...>` | no | string | `claude` / `grok`: headless one-shot answer instead of a chat; `deepseek` always works this way, `-p` optional |
 | `<command> [args...]` | `local` only | a command below + its own args | passed through unchanged, so `ai l <command> --help` works |
 | `--help` / `-h` | no | — | print usage and exit; also `ai <tool> --help`, and `ai l --help` lists the local commands |
@@ -830,12 +830,14 @@ The same `install.sh` is meant to become the one entry point for a VPS, in the s
 
 ### Named desktop workspaces (optional, manual)
 
-One desktop workspace per project, with its name in the top bar. Not part of `install.sh`: desktop setups differ too much, so this is a by-hand step. Not to be confused with [`wsname`](#wsname), which names VS Code workspaces.
+One desktop workspace per project, each with a name. Not part of `install.sh`: desktop setups differ too much, so this is a by-hand step. Not to be confused with [`wsname`](#wsname), which names VS Code workspaces.
 
 **GNOME (X11 and Wayland)**
 
-1. Set the names; order = workspace 1, 2, 3:
+1. Fix the number of workspaces (GNOME adds and removes them on the fly by default, so a name could point to a workspace that does not exist), then set the names; order = workspace 1, 2, 3:
    ```
+   gsettings set org.gnome.mutter dynamic-workspaces false
+   gsettings set org.gnome.desktop.wm.preferences num-workspaces 3
    gsettings set org.gnome.desktop.wm.preferences workspace-names "['project-a', 'project-b', 'project-c']"
    ```
 2. Install the official GNOME extensions package, then reload GNOME Shell (X11: `Alt+F2`, type `r`, Enter; Wayland: log out and back in):
@@ -846,7 +848,8 @@ One desktop workspace per project, with its name in the top bar. Not part of `in
    ```
    gnome-extensions enable workspace-indicator@gnome-shell-extensions.gcampax.github.com
    ```
-   On GNOME 42 the bar shows the workspace number; click it for the list of names. To show the name itself in the bar, use the **Space Bar** extension (Extension Manager → Browse) and disable Workspace Indicator.
+   It never puts the name in the bar. With vertical workspaces (Pop!_OS) or more than 6 of them, the bar shows the number and a click opens the list of names; otherwise it shows small thumbnails, with the name on hover.
+4. For the name itself in the bar, install Extension Manager (`sudo apt install gnome-shell-extension-manager`), add **Space Bar** from its Browse tab (it lists only versions that fit your GNOME), then disable Workspace Indicator.
 
 GNOME cannot show the names on the overview thumbnails.
 
@@ -856,10 +859,12 @@ Needs `wmctrl` (`sudo apt install wmctrl`). Add to your own `~/.bashrc`, adaptin
 
 ```
 # gows <index> <dir>: switch to workspace <index> (0-based), open VS Code and a terminal there
-gows() { wmctrl -s "$1" && code "$2" && gnome-terminal --working-directory="$2"; }
+gows() { wmctrl -s "$1" && sleep 0.2 && code -n "$2" && gnome-terminal --working-directory="$2"; }
 ```
 
-e.g. `gows 0 ~/code/project-a`. Wayland GNOME has no command-line way to switch workspaces; KDE (`qdbus`), Sway/i3 (`swaymsg`/`i3-msg`) and Hyprland (`hyprctl`) have their own; macOS needs a third-party tool such as AeroSpace.
+e.g. `gows 0 ~/code/project-a`. The short pause lets the switch finish before the windows open. A folder already open in VS Code is not opened again: VS Code focuses its existing window, on whatever workspace it sits.
+
+Other desktops: stock GNOME on Wayland has no command line for it (only extensions that expose D-Bus, or `ydotool` sending the workspace shortcut); KDE (`qdbus`), Sway/i3 (`swaymsg`/`i3-msg`) and Hyprland (`hyprctl`) have their own; macOS needs a third-party tool such as AeroSpace.
 
 ### System requirements
 
