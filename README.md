@@ -836,7 +836,7 @@ One desktop workspace per project, with its name in the top bar. Not part of `in
 
 1. Set the names; order = workspace 1, 2, 3:
    ```
-   gsettings set org.gnome.desktop.wm.preferences workspace-names "['peaha_ai', 'lpy_lat', 'lat_slash']"
+   gsettings set org.gnome.desktop.wm.preferences workspace-names "['project-a', 'project-b', 'project-c']"
    ```
 2. Install the official GNOME extensions package, then reload GNOME Shell (X11: `Alt+F2`, type `r`, Enter; Wayland: log out and back in):
    ```
@@ -859,7 +859,7 @@ Needs `wmctrl` (`sudo apt install wmctrl`). Add to your own `~/.bashrc`, adaptin
 gows() { wmctrl -s "$1" && code "$2" && gnome-terminal --working-directory="$2"; }
 ```
 
-e.g. `gows 0 ~/Documents/works/peaha_ai`. Wayland GNOME has no command-line way to switch workspaces; KDE (`qdbus`), Sway/i3 (`swaymsg`/`i3-msg`) and Hyprland (`hyprctl`) have their own; macOS needs a third-party tool such as AeroSpace.
+e.g. `gows 0 ~/code/project-a`. Wayland GNOME has no command-line way to switch workspaces; KDE (`qdbus`), Sway/i3 (`swaymsg`/`i3-msg`) and Hyprland (`hyprctl`) have their own; macOS needs a third-party tool such as AeroSpace.
 
 ### System requirements
 
