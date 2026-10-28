@@ -848,7 +848,7 @@ One desktop workspace per project, each with a name. Not part of `install.sh`: d
    ```
    gnome-extensions enable workspace-indicator@gnome-shell-extensions.gcampax.github.com
    ```
-   It never puts the name in the bar. With vertical workspaces (Pop!_OS) or more than 6 of them, the bar shows the number and a click opens the list of names; otherwise it shows small thumbnails, with the name on hover.
+   On version 42 (Ubuntu / Pop!_OS 22.04) it never puts the name in the bar: with vertical workspaces (Pop!_OS) or more than 6 of them, the bar shows the number and a click opens the list of names; otherwise it shows small thumbnails, with the name on hover. Newer versions changed this; check the extension's settings.
 4. For the name itself in the bar, install Extension Manager (`sudo apt install gnome-shell-extension-manager`), add **Space Bar** from its Browse tab (it lists only versions that fit your GNOME), then disable Workspace Indicator.
 
 GNOME cannot show the names on the overview thumbnails.
@@ -859,7 +859,7 @@ Needs `wmctrl` (`sudo apt install wmctrl`). Add to your own `~/.bashrc`, adaptin
 
 ```
 # gows <index> <dir>: switch to workspace <index> (0-based), open VS Code and a terminal there
-gows() { wmctrl -s "$1" && sleep 0.2 && code -n "$2" && gnome-terminal --working-directory="$2"; }
+gows() { wmctrl -s "$1" && sleep 0.2; code -n "$2"; gnome-terminal --working-directory="$2"; }
 ```
 
 e.g. `gows 0 ~/code/project-a`. The short pause lets the switch finish before the windows open. A folder already open in VS Code is not opened again: VS Code focuses its existing window, on whatever workspace it sits.
