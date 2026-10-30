@@ -277,6 +277,11 @@ x-download-batch someusername
 
 Image and video utilities on `ffmpeg`, ImageMagick and `sharp`.
 
+Video editing beyond these commands (captions, silence cuts, loudness, platform exports, sync) goes through the vendored [`ffmpeg-skill`](https://github.com/kajisho5/ffmpeg-skill) (MIT, pinned at 2.17.3) in `.claude/skills/ffmpeg-skill/`, loaded in Claude Code sessions started in this repo. Needs FFmpeg >= 5.0 (6.1+ recommended) and Python 3.9+; `python3 .claude/skills/ffmpeg-skill/scripts/_contract.py doctor` checks the machine.
+
+- Its scripts do not pass `-protocol_whitelist` to ffmpeg, so a crafted file (a playlist named `.mp4`) can make ffmpeg open network URLs. Use it on our own footage; a downloaded file (`social/` commands, anything from outside) is remuxed to a plain local file first: `ffmpeg -protocol_whitelist file -i in.mp4 -c copy -map 0 clean.mp4`.
+- Update: `npx ffmpeg-skill@<version> --project` from this repo root, after reading that version's `bin/install.js`; never the bare `npx ffmpeg-skill`, which installs into the user profile.
+
 ### `image-to-jpg`
 One command for any supported source format, dispatched by file extension — same behaviour as `webp-to-jpg` / `heic-to-jpg`, just picked automatically. Currently supports `.webp`, `.heic`, `.heif`, `.avif`; a folder input can mix formats freely.
 
@@ -899,6 +904,7 @@ ai-cli/
 │   ├── dev/                        # ai-resume, gitchat, gitpush, gitpool-landed, github-events, workspace-check, repo-split-branches, repo-join-branches, search-string, fixvscode, wsname
 │   └── utils/                      # share-qr, translate-text
 ├── workers/github-events/          # Cloudflare Worker behind github-events
+├── .claude/skills/ffmpeg-skill/    # vendored third-party skill (MIT), see "media"
 ├── package.json                    # `bin`: command name -> script, read by npm link
 └── README.md
 ```
